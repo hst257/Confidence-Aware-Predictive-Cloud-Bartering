@@ -4,12 +4,6 @@ import type { Match, SimulationConfiguration, Snapshot } from './types'
 // still point at a separate API with VITE_API_URL.
 const API_URL = import.meta.env.VITE_API_URL ?? '/api'
 
-export function experimentExportUrl(format: 'csv' | 'json', runIds: number[] = []) {
-  const params = new URLSearchParams({ format })
-  if (runIds.length) params.set('run_ids', runIds.join(','))
-  return `${API_URL}/experiments/export?${params}`
-}
-
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
     headers: { 'Content-Type': 'application/json', ...options?.headers },

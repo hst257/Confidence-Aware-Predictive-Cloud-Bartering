@@ -16,7 +16,7 @@ export function Marketplace({ matches, predictions, onCreate, busy }: { matches:
         {matches.length === 0 ? <div className="panel empty">Generate predictions and run matching to see ranked contracts.</div> : (
           <div className="match-grid">
             {matches.map((match, index) => (
-              <article className={`panel match-card ${index === 0 ? 'best' : ''}`} key={`${match.provider_id}-${match.consumer_id}`}>
+              <article className={`panel match-card ${index === 0 ? 'best' : ''}`} key={`${match.provider_id}-${match.consumer_id}-${match.prediction_id}-${match.demand_prediction_id}`}>
                 {index === 0 && <span className="best-label"><Check size={13} /> Best match</span>}
                 <div className="match-route"><div><small>Provider</small><strong>{match.provider_name}</strong></div><ArrowRight /><div><small>Consumer</small><strong>{match.consumer_name}</strong></div><span className="match-score">{match.match_score}<small>/100</small></span></div>
                 <div className="match-resources"><span><Cpu size={16} /> {match.cpu_amount} CPU</span><span><HardDrive size={16} /> {match.ram_amount} GB</span><span><Coins size={16} /> {match.barter_cost} credits</span><span><ShieldCheck size={16} /> {match.collateral} collateral</span></div>

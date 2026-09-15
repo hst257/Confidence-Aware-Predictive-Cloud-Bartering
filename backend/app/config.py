@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://cloud_barter:cloud_barter@localhost:55432/cloud_barter"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    # Phase 1 policy knobs. Keeping these here makes later experiments reproducible.
+    # Phase 1 economic and reputation policy knobs.
     collateral_rate: float = 0.16
     cpu_credit_rate: float = 1.5
     ram_credit_rate: float = 0.6
@@ -29,24 +29,12 @@ class Settings(BaseSettings):
     simulation_tick_real_seconds: float = 0.25
     resource_sample_seconds: int = 60
     prediction_interval_minutes: int = 30
-    prediction_horizons_minutes: str = "15,30,60,120,240"
+    prediction_horizons_minutes: str = "30,60,120,240"
     planning_horizon_minutes: int = 240
     contract_duration_minutes: int = 60
     contract_planning_cooldown_minutes: int = 180
     step_forward_minutes: int = 5
     max_history_points: int = 720
-
-    # Phase 4 forecasting and risk policy.
-    default_forecast_model: str = "Auto"
-    default_shadow_models: str = "Naive,Moving Average,Linear Trend,Holt-Winters"
-    default_training_window_minutes: int = 360
-    model_selection_period_minutes: int = 60
-    forecast_retraining_interval_minutes: int = 60
-    safety_margin_multiplier: float = 1.0
-    collateral_confidence_90: float = 0.05
-    collateral_confidence_80: float = 0.10
-    collateral_confidence_70: float = 0.15
-    collateral_confidence_low: float = 0.25
 
     @property
     def prediction_horizons(self) -> list[int]:

@@ -55,15 +55,6 @@ class PredictionOut(OrmModel):
     horizon_minutes: int = 0
     cycle_id: str | None = None
     recent_volatility: float = 0
-    model_name: str = "Legacy"
-    decision_forecast: bool = True
-    uncertainty_cpu: float = 0
-    uncertainty_ram: float = 0
-    fallback_model: str | None = None
-    training_points: int = 0
-    training_window_minutes: int = 0
-    revision_number: int = 1
-    model_metadata: dict | None = None
     kind: PredictionKind
     superseded: bool
 
@@ -238,16 +229,6 @@ class SimulationConfigureRequest(BaseModel):
     scenario: str = "Normal"
     seed: int | None = Field(default=4281, ge=1, le=2_147_483_647)
     random_mode: bool = False
-    forecast_model: str = "Auto"
-    shadow_models: list[str] = Field(default_factory=lambda: ["Naive", "Moving Average", "Linear Trend", "Holt-Winters"])
-    training_window_minutes: int = Field(default=360, ge=120, le=4320)
-    bartering_strategy: str = Field(default="Confidence-Aware Predictive", pattern="^(Reactive Only|Predictive|Confidence-Aware Predictive)$")
-    safety_margin_multiplier: float = Field(default=1.0, ge=0.25, le=3.0)
-    model_selection_period_minutes: int = Field(default=60, ge=30, le=360)
-
-
-class ExperimentComparisonRequest(BaseModel):
-    run_ids: list[int] = Field(default_factory=list)
 
 
 class InjectEventRequest(BaseModel):

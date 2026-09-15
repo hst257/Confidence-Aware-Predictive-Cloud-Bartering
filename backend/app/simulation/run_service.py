@@ -17,21 +17,13 @@ def current_run(db: Session) -> SimulationRun | None:
 
 def create_run(
     db: Session, *, seed: int = DEFAULT_SEED, scenario: str = DEFAULT_SCENARIO,
-    random_mode: bool = False, forecast_model: str = "Auto", shadow_models: list[str] | None = None,
-    training_window_minutes: int = 360, bartering_strategy: str = "Confidence-Aware Predictive",
-    safety_margin_multiplier: float = 1.0, model_selection_period_minutes: int = 60,
+    random_mode: bool = False,
 ) -> SimulationRun:
     configuration = scenario_configuration(scenario)
     run = SimulationRun(
         seed=seed,
         scenario=scenario,
         random_mode=random_mode,
-        forecast_model=forecast_model,
-        shadow_models=shadow_models or ["Naive", "Moving Average", "Linear Trend", "Holt-Winters"],
-        training_window_minutes=training_window_minutes,
-        bartering_strategy=bartering_strategy,
-        safety_margin_multiplier=safety_margin_multiplier,
-        model_selection_period_minutes=model_selection_period_minutes,
         status="Ready",
         starting_time=simulation_epoch(),
         configuration=configuration,
@@ -70,12 +62,6 @@ def list_run_summaries(db: Session, limit: int = 20) -> list[dict]:
             "seed": run.seed,
             "scenario": run.scenario,
             "random_mode": run.random_mode,
-            "forecast_model": run.forecast_model,
-            "shadow_models": run.shadow_models or [],
-            "training_window_minutes": run.training_window_minutes,
-            "bartering_strategy": run.bartering_strategy,
-            "safety_margin_multiplier": run.safety_margin_multiplier,
-            "model_selection_period_minutes": run.model_selection_period_minutes,
             "status": run.status,
             "starting_time": run.starting_time,
             "ending_time": run.ending_time,

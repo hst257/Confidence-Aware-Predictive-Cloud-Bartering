@@ -12,9 +12,6 @@ export type Prediction = {
   safe_cpu_commitment: number; safe_ram_commitment: number; confidence: number; window_start: string; window_end: string
   generated_at: string; simulation_generated_at: string | null; horizon_minutes: number; cycle_id: string | null
   recent_volatility: number; kind: 'Initial' | 'Revised'; superseded: boolean
-  model_name: string; decision_forecast: boolean; uncertainty_cpu: number; uncertainty_ram: number
-  fallback_model: string | null; training_points: number; training_window_minutes: number
-  revision_number: number; model_metadata: Record<string, unknown>
 }
 
 export type Provider = {
@@ -91,10 +88,6 @@ export type SimulationState = {
   id: number; run_id: number; current_time: string; day: number; clock: string; running: boolean; status: 'Running' | 'Paused'
   speed: number; allowed_speeds: number[]; seed: number; scenario: string; mode: 'Random' | 'Reproducible'; random_mode: boolean
   configuration: ScenarioConfiguration; available_scenarios: string[]; last_sample_at: string | null; last_prediction_at: string | null
-  forecast_model: string; shadow_models: string[]; training_window_minutes: number
-  bartering_strategy: 'Reactive Only' | 'Predictive' | 'Confidence-Aware Predictive'
-  safety_margin_multiplier: number; model_selection_period_minutes: number; model_assignments: Record<string, string>
-  available_models: string[]; available_training_windows: number[]; available_strategies: string[]
 }
 
 export type ForecastMetric = {
@@ -108,8 +101,6 @@ export type CalibrationBucket = { bucket: string; prediction_count: number; aver
 export type SimulationRun = {
   id: number; seed: number; scenario: string; random_mode: boolean; status: string; starting_time: string; ending_time: string | null
   simulation_duration_minutes: number; configuration: ScenarioConfiguration; final_statistics: Record<string, unknown>
-  forecast_model: string; shadow_models: string[]; training_window_minutes: number; bartering_strategy: string
-  safety_margin_multiplier: number; model_selection_period_minutes: number
 }
 
 export type AnalyticsSummary = {
@@ -124,43 +115,16 @@ export type AnalyticsSummary = {
   at_risk_contracts: number; predicted_deficits: number; contract_counts: Record<string, number>; collateral_penalties: number
   providers: Array<{ id: number; name: string; cpu_utilization: number; ram_utilization: number; credits: number; sla_reputation: number; forecast_reliability: number; volatility: number }>
   forecast_metrics: ForecastMetric[]; confidence_calibration: CalibrationBucket[]; runs: SimulationRun[]
-  strategy: string | null; forecasting?: ForecastingAnalytics
 }
 
 export type PredictionEvaluation = {
   id: number; prediction_id: number; simulation_time: string; actual_cpu_usage: number; actual_ram_usage: number
   cpu_absolute_error: number; ram_absolute_error: number; percentage_error: number; forecast_bias: number
   event_impacted: boolean; successful: boolean
-  model_name: string; horizon_minutes: number; cpu_squared_error: number; ram_squared_error: number
-  cpu_percentage_error: number; ram_percentage_error: number; failure_attribution: string; training_insufficient: boolean
 }
-
-export type ModelMetric = {
-  model_name: string; evaluations: number; cpu_mae: number; ram_mae: number; rmse: number; mape: number; bias: number
-  success_rate: number; average_confidence: number; forecast_count: number; decision_forecasts: number; fallbacks: number
-  contracts: number; sla_failures: number; model_contract_success_rate: number
-}
-
-export type HorizonMetric = Omit<ModelMetric, 'average_confidence' | 'forecast_count' | 'decision_forecasts' | 'fallbacks' | 'contracts' | 'sla_failures' | 'model_contract_success_rate'> & { horizon_minutes: number }
-export type ForecastErrorPoint = { time: string; provider_id: number; provider_name: string; model_name: string; horizon_minutes: number; cpu_error: number; ram_error: number; percentage_error: number; bias: number; successful: boolean; confidence: number; failure_attribution: string }
-export type RevisionTrack = { prediction_id: number; provider_id: number; provider_name: string; model_name: string; target_time: string; generated_at: string | null; horizon_minutes: number; revision_number: number; predicted_cpu: number; predicted_ram: number; uncertainty_cpu: number; uncertainty_ram: number; confidence: number; decision_forecast: boolean; fallback_model: string | null }
-export type ForecastingAnalytics = { models: string[]; horizons: number[]; confidence_formula: string; model_metrics: ModelMetric[]; horizon_metrics: HorizonMetric[]; error_timeline: ForecastErrorPoint[]; revision_tracks: RevisionTrack[]; calibration: CalibrationBucket[] }
-
-export type ExperimentRun = {
-  run_id: number; seed: number; scenario: string; forecast_model: string; bartering_strategy: string
-  training_window_minutes: number; safety_margin_multiplier: number; duration_minutes: number; status: string
-  shortages_prevented: number; emergency_contracts: number; unresolved_shortages: number; total_cpu_utilization: number
-  collateral_penalties: number; contract_success_rate: number; average_forecast_accuracy: number
-  system_resilience_score: number; average_reaction_time: number; average_prediction_lead_time: number
-  renegotiations: number; failed_contracts: number
-  [key: string]: string | number
-}
-export type StrategySummary = { strategy: string; run_count: number; metrics: Record<string, { mean: number; median: number; min: number; max: number; stddev: number }> }
-export type ExperimentComparison = { metrics: string[]; runs: ExperimentRun[]; strategy_summary: StrategySummary[] }
 
 export type SimulationConfiguration = {
-  scenario: string; seed: number | null; random_mode: boolean; forecast_model: string; shadow_models: string[]
-  training_window_minutes: number; bartering_strategy: string; safety_margin_multiplier: number; model_selection_period_minutes: number
+  scenario: string; seed: number | null; random_mode: boolean
 }
 
 export type ProviderAnalytics = {
@@ -181,5 +145,4 @@ export type Snapshot = {
   events: SystemEvent[]; stochastic_events: StochasticEvent[]; shortages: Shortage[]; analytics: AnalyticsSummary
   transactions: CreditTransaction[]; reputation: ReputationHistory[]; renegotiations: Renegotiation[]
   credit_timelines: CreditTimeline[]; selected_provider: ProviderAnalytics | null
-  forecasting: ForecastingAnalytics; experiment_comparison: ExperimentComparison
 }

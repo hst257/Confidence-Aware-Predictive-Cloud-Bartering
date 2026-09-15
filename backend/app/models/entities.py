@@ -84,6 +84,9 @@ class Prediction(Base):
     horizon_minutes: Mapped[int] = mapped_column(Integer, default=0)
     cycle_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     recent_volatility: Mapped[float] = mapped_column(Float, default=0)
+    # Compatibility-only Phase 4 columns. They remain mapped so an existing
+    # Phase 4 database can accept Phase 3 inserts, but no Phase 3 service reads
+    # or exposes them.
     model_name: Mapped[str] = mapped_column(String(40), default="Legacy", index=True)
     decision_forecast: Mapped[bool] = mapped_column(Boolean, default=True, index=True)
     uncertainty_cpu: Mapped[float] = mapped_column(Float, default=0)
@@ -233,6 +236,9 @@ class PredictionEvaluation(Base):
     percentage_error: Mapped[float] = mapped_column(Float)
     forecast_bias: Mapped[float] = mapped_column(Float, default=0)
     event_impacted: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Compatibility-only evaluation fields retained for databases previously
+    # opened by Phase 4. Phase 3 analytics use the core fields above and the
+    # successful flag below.
     model_name: Mapped[str] = mapped_column(String(40), default="Legacy", index=True)
     horizon_minutes: Mapped[int] = mapped_column(Integer, default=0, index=True)
     cpu_squared_error: Mapped[float] = mapped_column(Float, default=0)
@@ -255,6 +261,7 @@ class SimulationRun(Base):
     seed: Mapped[int] = mapped_column(Integer, index=True)
     scenario: Mapped[str] = mapped_column(String(32), index=True)
     random_mode: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Compatibility-only Phase 4 configuration fields; intentionally unused.
     forecast_model: Mapped[str] = mapped_column(String(40), default="Auto", index=True)
     shadow_models: Mapped[list[str]] = mapped_column(JSON, default=list)
     training_window_minutes: Mapped[int] = mapped_column(Integer, default=360)
@@ -324,6 +331,7 @@ class SimulationState(Base):
     scenario: Mapped[str] = mapped_column(String(32), default="Normal")
     random_mode: Mapped[bool] = mapped_column(Boolean, default=False)
     configuration: Mapped[dict] = mapped_column(JSON, default=dict)
+    # Compatibility-only Phase 4 configuration fields; intentionally unused.
     forecast_model: Mapped[str] = mapped_column(String(40), default="Auto")
     shadow_models: Mapped[list[str]] = mapped_column(JSON, default=list)
     training_window_minutes: Mapped[int] = mapped_column(Integer, default=360)

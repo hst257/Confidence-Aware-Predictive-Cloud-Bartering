@@ -33,8 +33,9 @@ def init_database() -> None:
 def _upgrade_prototype_schema() -> None:
     """Additive migration for existing Phase 1/2 prototype installations.
 
-    Phase 3 adds only nullable/defaulted columns here; new stochastic-run tables
-    are created by metadata afterward, preserving all earlier prototype data.
+    Phase 3 additions are nullable/defaulted so older prototype data survives.
+    The compatibility entries also tolerate databases that were previously
+    opened by Phase 4; Phase 3 services do not depend on those extra fields.
     """
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())

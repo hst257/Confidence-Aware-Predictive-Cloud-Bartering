@@ -1,6 +1,4 @@
 from datetime import timedelta
-from math import sqrt
-
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,8 +20,6 @@ from ..models import (
     StochasticEvent,
 )
 from ..simulation.simulation_state import get_or_create_state
-from ..forecasting.confidence import CONFIDENCE_FORMULA
-from ..forecasting.model_manager import AVAILABLE_MODELS
 
 
 def _current_run_id(db: Session, run_id: int | None = None) -> int | None:
@@ -82,96 +78,6 @@ def confidence_calibration(db: Session, run_id: int | None = None) -> list[dict]
     return result
 
 
-def forecasting_analytics(db: Session, run_id: int | None = None) -> dict:
-    selected_run = _current_run_id(db, run_id)
-    providers = {item.id: item.name for item in db.scalars(select(Provider)).all()}
-    predictions = db.scalars(select(Prediction).where(
-        Prediction.run_id == selected_run,
-        Prediction.simulation_generated_at.is_not(None),
-    ).order_by(Prediction.simulation_generated_at, Prediction.id)).all()
-    evaluations = db.scalars(select(PredictionEvaluation).where(
-        PredictionEvaluation.run_id == selected_run,
-    ).order_by(PredictionEvaluation.simulation_time, PredictionEvaluation.id)).all()
-    prediction_map = {item.id: item for item in predictions}
-    contracts = db.scalars(select(BarterContract).where(BarterContract.run_id == selected_run)).all()
-
-    def metrics(items: list[PredictionEvaluation]) -> dict:
-        count = len(items)
-        if not count:
-            return {"evaluations": 0, "cpu_mae": 0, "ram_mae": 0, "rmse": 0, "mape": 0, "bias": 0, "success_rate": 0}
-        return {
-            "evaluations": count,
-            "cpu_mae": round(sum(x.cpu_absolute_error for x in items) / count, 3),
-            "ram_mae": round(sum(x.ram_absolute_error for x in items) / count, 3),
-            "rmse": round(sqrt(sum(x.cpu_squared_error + x.ram_squared_error for x in items) / (2 * count)), 3),
-            "mape": round(sum(x.percentage_error for x in items) / count, 3),
-            "bias": round(sum(x.forecast_bias for x in items) / count, 3),
-            "success_rate": round(sum(x.successful for x in items) / count * 100, 2),
-        }
-
-    model_rows = []
-    for model_name in AVAILABLE_MODELS:
-        model_evals = [x for x in evaluations if x.model_name == model_name]
-        model_predictions = [x for x in predictions if x.model_name == model_name]
-        ids = {x.id for x in model_predictions}
-        model_contracts = [x for x in contracts if x.prediction_id in ids]
-        settled_model_contracts = [x for x in model_contracts if x.status in {ContractStatus.COMPLETED, ContractStatus.FAILED}]
-        row = metrics(model_evals)
-        row.update({
-            "model_name": model_name,
-            "average_confidence": round(sum(x.confidence for x in model_predictions) / len(model_predictions), 2) if model_predictions else 0,
-            "forecast_count": len(model_predictions),
-            "decision_forecasts": sum(x.decision_forecast for x in model_predictions),
-            "fallbacks": sum(x.fallback_model is not None for x in model_predictions),
-            "contracts": len(model_contracts),
-            "sla_failures": sum(x.status == ContractStatus.FAILED for x in model_contracts),
-            "model_contract_success_rate": round(sum(x.status == ContractStatus.COMPLETED for x in settled_model_contracts) / len(settled_model_contracts) * 100, 2) if settled_model_contracts else 0,
-        })
-        model_rows.append(row)
-
-    horizon_rows = []
-    for model_name in AVAILABLE_MODELS:
-        for horizon in get_settings().prediction_horizons:
-            items = [x for x in evaluations if x.model_name == model_name and x.horizon_minutes == horizon]
-            row = metrics(items)
-            row.update({"model_name": model_name, "horizon_minutes": horizon})
-            horizon_rows.append(row)
-
-    error_timeline = []
-    for item in evaluations[-1200:]:
-        prediction = prediction_map.get(item.prediction_id)
-        error_timeline.append({
-            "time": item.simulation_time.isoformat(), "provider_id": item.provider_id,
-            "provider_name": providers.get(item.provider_id, "Unknown"), "model_name": item.model_name,
-            "horizon_minutes": item.horizon_minutes, "cpu_error": item.cpu_absolute_error,
-            "ram_error": item.ram_absolute_error, "percentage_error": item.percentage_error,
-            "bias": item.forecast_bias, "successful": item.successful,
-            "confidence": prediction.confidence if prediction else 0,
-            "failure_attribution": item.failure_attribution,
-        })
-    revision_tracks = [{
-        "prediction_id": item.id, "provider_id": item.provider_id,
-        "provider_name": providers.get(item.provider_id, "Unknown"), "model_name": item.model_name,
-        "target_time": item.window_start.isoformat(),
-        "generated_at": item.simulation_generated_at.isoformat() if item.simulation_generated_at else None,
-        "horizon_minutes": item.horizon_minutes, "revision_number": item.revision_number,
-        "predicted_cpu": item.predicted_cpu_usage, "predicted_ram": item.predicted_ram_usage,
-        "uncertainty_cpu": item.uncertainty_cpu, "uncertainty_ram": item.uncertainty_ram,
-        "confidence": item.confidence, "decision_forecast": item.decision_forecast,
-        "fallback_model": item.fallback_model,
-    } for item in predictions[-1600:]]
-    return {
-        "models": AVAILABLE_MODELS,
-        "horizons": get_settings().prediction_horizons,
-        "confidence_formula": CONFIDENCE_FORMULA,
-        "model_metrics": model_rows,
-        "horizon_metrics": horizon_rows,
-        "error_timeline": error_timeline,
-        "revision_tracks": revision_tracks,
-        "calibration": confidence_calibration(db, selected_run),
-    }
-
-
 def analytics_summary(db: Session, run_id: int | None = None, include_runs: bool = True) -> dict:
     selected_run = _current_run_id(db, run_id)
     state = db.get(SimulationState, 1)
@@ -222,7 +128,7 @@ def analytics_summary(db: Session, run_id: int | None = None, include_runs: bool
     ]
     active_events = [item for item in stochastic_events if event_now and item.start_time <= event_now < item.end_time]
     predictions = db.scalars(select(Prediction).where(
-        Prediction.run_id == selected_run, Prediction.superseded.is_(False), Prediction.decision_forecast.is_(True),
+        Prediction.run_id == selected_run, Prediction.superseded.is_(False),
     )).all()
     result = {
         "run_id": selected_run,
@@ -271,7 +177,6 @@ def analytics_summary(db: Session, run_id: int | None = None, include_runs: bool
         } for provider, resource in current_states],
         "forecast_metrics": provider_forecast_metrics(db, selected_run),
         "confidence_calibration": confidence_calibration(db, selected_run),
-        "strategy": state.bartering_strategy if state and state.current_run_id == selected_run else None,
     }
     if include_runs:
         from ..simulation.run_service import list_run_summaries

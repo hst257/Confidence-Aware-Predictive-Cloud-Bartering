@@ -32,7 +32,7 @@ def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
     """Reforecast open commitments and split any unsafe agreement."""
     changed: list[int] = []
     state = db.get(SimulationState, 1)
-    if state.bartering_strategy == "Reactive Only":
+    if not state or not state.current_run_id:
         return []
     contracts = db.scalars(
         select(BarterContract).where(
@@ -48,7 +48,6 @@ def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
                 Prediction.run_id == state.current_run_id,
                 Prediction.window_start == contract.start_time,
                 Prediction.simulation_generated_at <= simulation_time,
-                Prediction.decision_forecast.is_(True),
             ).order_by(Prediction.simulation_generated_at.desc(), Prediction.id.desc())
         )
         if not prediction:
@@ -90,7 +89,6 @@ def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
                 Prediction.cycle_id == prediction.cycle_id,
                 Prediction.window_start == contract.start_time,
                 Prediction.provider_id.notin_([contract.provider_id, contract.consumer_id]),
-                Prediction.decision_forecast.is_(True),
             )
         ).all()
         providers = {item.id: item for item in db.scalars(select(Provider)).all()}

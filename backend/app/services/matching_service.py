@@ -44,19 +44,8 @@ def resource_cost(cpu: float, ram: float) -> float:
     return round(cpu * settings.cpu_credit_rate + ram * settings.ram_credit_rate, 2)
 
 
-def collateral_cost(barter_cost: float, confidence: float | None = None) -> float:
-    settings = get_settings()
-    if confidence is None:
-        rate = settings.collateral_rate
-    elif confidence >= 90:
-        rate = settings.collateral_confidence_90
-    elif confidence >= 80:
-        rate = settings.collateral_confidence_80
-    elif confidence >= 70:
-        rate = settings.collateral_confidence_70
-    else:
-        rate = settings.collateral_confidence_low
-    return round(barter_cost * rate, 2)
+def collateral_cost(barter_cost: float) -> float:
+    return round(barter_cost * get_settings().collateral_rate, 2)
 
 
 def _committed(db: Session, provider_id: int, prediction: Prediction) -> tuple[float, float]:
@@ -82,13 +71,12 @@ def find_matches(
 ) -> list[MatchCandidate]:
     settings = get_settings()
     state = db.get(SimulationState, 1)
-    if state.bartering_strategy == "Reactive Only":
+    if not state or not state.current_run_id:
         return []
     excluded_provider_ids = excluded_provider_ids or set()
     query = select(Prediction).where(
         Prediction.run_id == state.current_run_id,
         Prediction.superseded.is_(False),
-        Prediction.decision_forecast.is_(True),
     ).order_by(Prediction.window_start, Prediction.id)
     if cycle_id is not None:
         query = query.where(Prediction.cycle_id == cycle_id)
@@ -162,7 +150,7 @@ def find_matches(
                     sla_reputation=provider.sla_reputation,
                     match_score=score,
                     barter_cost=cost,
-                    collateral=collateral_cost(cost, supply.confidence if supply.simulation_generated_at is not None else None),
+                    collateral=collateral_cost(cost),
                     safe_cpu_available=round(available_cpu, 2),
                     safe_ram_available=round(available_ram, 2),
                     reserved_cpu=round(committed_cpu, 2),

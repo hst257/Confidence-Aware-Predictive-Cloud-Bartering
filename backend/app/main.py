@@ -21,7 +21,7 @@ async def lifespan(_: FastAPI):
             seed_if_empty(db)
             get_or_create_state(db)
             db.commit()
-    engine_task = asyncio.create_task(run_engine_loop(), name="phase4-forecasting-simulation-engine")
+    engine_task = asyncio.create_task(run_engine_loop(), name="phase3-stochastic-simulation-engine")
     try:
         yield
     finally:
@@ -34,8 +34,8 @@ def create_app() -> FastAPI:
     settings = get_settings()
     application = FastAPI(
         title=settings.app_name,
-        version="4.0.0-phase4",
-        description="Confidence-aware multi-model workload forecasting, evaluation, and cloud resource bartering experiments.",
+        version="3.0.0-phase3",
+        description="Seeded stochastic cloud simulation with simple predictive and emergency resource bartering.",
         lifespan=lifespan,
     )
     application.add_middleware(

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Activity, BarChart3, BrainCircuit, CloudCog, FileText, FlaskConical, GitCompareArrows, LayoutDashboard, Menu, RefreshCw, ShieldCheck, X } from 'lucide-react'
+import { Activity, BarChart3, BrainCircuit, CloudCog, FileText, LayoutDashboard, Menu, RefreshCw, ShieldCheck, X } from 'lucide-react'
 import { actions, loadSnapshot } from './api'
 import { ContractDrawer } from './components/ContractDrawer'
 import { EventLog } from './components/EventLog'
@@ -11,24 +11,18 @@ import { Marketplace } from './pages/Marketplace'
 import { Predictions } from './pages/Predictions'
 import { ProviderDetail } from './pages/ProviderDetail'
 import { Reputation } from './pages/Reputation'
-import { Forecasting } from './pages/Forecasting'
-import { Experiments } from './pages/Experiments'
-import { Comparison } from './pages/Comparison'
 import type { Match, Snapshot } from './types'
 
-type Page = 'overview' | 'predictions' | 'forecasting' | 'marketplace' | 'contracts' | 'reputation' | 'analytics' | 'experiments' | 'comparison' | 'provider'
+type Page = 'overview' | 'predictions' | 'marketplace' | 'contracts' | 'reputation' | 'analytics' | 'provider'
 type ContractDetail = Parameters<typeof ContractDrawer>[0]['detail']
 
 const nav: { id: Exclude<Page, 'provider'>; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'overview', label: 'Live overview', icon: LayoutDashboard },
   { id: 'predictions', label: 'Predictions', icon: BrainCircuit },
-  { id: 'forecasting', label: 'Forecasting', icon: Activity },
   { id: 'marketplace', label: 'Marketplace', icon: BarChart3 },
   { id: 'contracts', label: 'Contracts', icon: FileText },
   { id: 'reputation', label: 'Reputation', icon: ShieldCheck },
   { id: 'analytics', label: 'Analytics', icon: Activity },
-  { id: 'experiments', label: 'Experiments', icon: FlaskConical },
-  { id: 'comparison', label: 'Comparison', icon: GitCompareArrows },
 ]
 
 function App() {
@@ -107,11 +101,11 @@ function App() {
     <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
       <div className="brand"><div className="brand-mark"><CloudCog /></div><div><strong>Concord</strong><span>Predictive Cloud Federation</span></div><button className="mobile-close" onClick={() => setMobileNav(false)}><X /></button></div>
       <nav>{nav.map(({ id, label, icon: Icon }) => <button className={page === id || (page === 'provider' && id === 'overview') ? 'active' : ''} key={id} onClick={() => { setPage(id); setMobileNav(false) }}><Icon size={18} /><span>{label}</span>{id === 'contracts' && data.contracts.length > 0 && <em>{data.contracts.length}</em>}</button>)}</nav>
-      <div className="sidebar-status"><div><i className={data.simulation.running ? '' : 'paused'} /><span>Engine {data.simulation.running ? 'running' : 'paused'}</span></div><small>5 horizons · {data.simulation.forecast_model} model</small></div>
+      <div className="sidebar-status"><div><i className={data.simulation.running ? '' : 'paused'} /><span>Engine {data.simulation.running ? 'running' : 'paused'}</span></div><small>4 horizons · simulated predictions</small></div>
     </aside>
     {mobileNav && <div className="nav-backdrop" onClick={() => setMobileNav(false)} />}
     <main>
-      <header className="topbar"><button className="menu-button" onClick={() => setMobileNav(true)}><Menu /></button><div><span className="eyebrow">Confidence-aware federation · Phase 4</span><h1>{title}</h1></div><div className="topbar-actions"><div className={`compact-clock ${data.simulation.running ? 'running' : ''}`}><span>Day {data.simulation.day}</span><strong>{data.simulation.clock}</strong></div><button className="icon-button refresh-button" title="Refresh data" onClick={() => void refresh()}><RefreshCw size={18} /></button><div className="avatar">P4</div></div></header>
+      <header className="topbar"><button className="menu-button" onClick={() => setMobileNav(true)}><Menu /></button><div><span className="eyebrow">Confidence-aware federation · Phase 3</span><h1>{title}</h1></div><div className="topbar-actions"><div className={`compact-clock ${data.simulation.running ? 'running' : ''}`}><span>Day {data.simulation.day}</span><strong>{data.simulation.clock}</strong></div><button className="icon-button refresh-button" title="Refresh data" onClick={() => void refresh()}><RefreshCw size={18} /></button><div className="avatar">P3</div></div></header>
       <div className="workspace">
         {error && <div className="error-banner"><Activity size={17} /><span>{error}</span><button onClick={() => setError(null)}><X size={16} /></button></div>}
         <SimulationControls
@@ -122,7 +116,7 @@ function App() {
           onReset={() => void perform(actions.reset, 'Simulation reset to Day 1')}
           onStep={() => void perform(() => actions.step(5), 'Advanced five simulated minutes')}
           onSpeed={(speed) => void perform(() => actions.speed(speed), `Speed changed to ${speed}×`)}
-          onConfigure={(configuration) => void perform(() => actions.configure(configuration), `${configuration.bartering_strategy} experiment configured`)}
+          onConfigure={(configuration) => void perform(() => actions.configure(configuration), `${configuration.scenario} scenario configured`)}
           onRandomSeed={() => void perform(actions.randomSeed, 'Generated a new stochastic seed')}
           onRestartSameSeed={() => void perform(actions.restartSameSeed, `Restarted seed ${data.simulation.seed}`)}
           onInject={(providerId: number, kind: InjectKind, severity) => void perform(() => actions.injectEvent(providerId, kind, severity), `Injected ${kind} event`)}
@@ -133,13 +127,10 @@ function App() {
             {page === 'overview' && <Dashboard data={data} selectedProviderId={selectedProviderId} onSelectProvider={setSelectedProviderId} onProviderDetails={(id) => { setSelectedProviderId(id); setPage('provider') }} rangeMinutes={rangeMinutes} onRangeChange={setRangeMinutes} />}
             {page === 'provider' && <ProviderDetail data={data.selected_provider} onBack={() => setPage('overview')} />}
             {page === 'predictions' && <Predictions predictions={data.predictions} />}
-            {page === 'forecasting' && <Forecasting data={data} providerId={selectedProviderId} onProviderChange={setSelectedProviderId} rangeMinutes={rangeMinutes} onRangeChange={setRangeMinutes} />}
             {page === 'marketplace' && <Marketplace matches={data.matches} predictions={data.predictions} busy={busy} onCreate={createContract} />}
             {page === 'contracts' && <Contracts contracts={data.contracts} renegotiations={data.renegotiations} onOpen={(id) => void openContract(id)} />}
             {page === 'reputation' && <Reputation providers={data.providers} history={data.reputation} transactions={data.transactions} />}
             {page === 'analytics' && <Analytics data={data} />}
-            {page === 'experiments' && <Experiments data={data} />}
-            {page === 'comparison' && <Comparison data={data} />}
           </section>
           <EventLog events={data.events} providers={data.providers} />
         </div>

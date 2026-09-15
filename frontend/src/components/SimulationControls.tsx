@@ -35,20 +35,11 @@ export function SimulationControls({
   const [scenario, setScenario] = useState(simulation.scenario)
   const [seed, setSeed] = useState(String(simulation.seed))
   const [randomMode, setRandomMode] = useState(simulation.random_mode)
-  const [forecastModel, setForecastModel] = useState(simulation.forecast_model)
-  const [shadowModels, setShadowModels] = useState(simulation.shadow_models)
-  const [trainingWindow, setTrainingWindow] = useState(simulation.training_window_minutes)
-  const [strategy, setStrategy] = useState(simulation.bartering_strategy)
-  const [safetyMargin, setSafetyMargin] = useState(simulation.safety_margin_multiplier)
-  const [selectionPeriod, setSelectionPeriod] = useState(simulation.model_selection_period_minutes)
   const [providerId, setProviderId] = useState(providers[0]?.id ?? 0)
   const [severity, setSeverity] = useState<'info' | 'warning' | 'critical'>('warning')
   useEffect(() => {
     setScenario(simulation.scenario); setSeed(String(simulation.seed)); setRandomMode(simulation.random_mode)
-    setForecastModel(simulation.forecast_model); setShadowModels(simulation.shadow_models)
-    setTrainingWindow(simulation.training_window_minutes); setStrategy(simulation.bartering_strategy)
-    setSafetyMargin(simulation.safety_margin_multiplier); setSelectionPeriod(simulation.model_selection_period_minutes)
-  }, [simulation.run_id, simulation.scenario, simulation.seed, simulation.random_mode, simulation.forecast_model, simulation.shadow_models, simulation.training_window_minutes, simulation.bartering_strategy, simulation.safety_margin_multiplier, simulation.model_selection_period_minutes])
+  }, [simulation.run_id, simulation.scenario, simulation.seed, simulation.random_mode])
   useEffect(() => { if (!providers.some((item) => item.id === providerId)) setProviderId(providers[0]?.id ?? 0) }, [providers, providerId])
   const stress = simulation.scenario === 'Stress Test'
   return (
@@ -57,7 +48,7 @@ export function SimulationControls({
       <div className="clock-block">
         <div className="simulation-state"><i /> RUN #{simulation.run_id} · {simulation.running ? 'RUNNING' : 'PAUSED'}</div>
         <div className="simulation-clock"><span>Day {simulation.day}</span><strong>{simulation.clock}</strong></div>
-        <small>{simulation.scenario} · Seed {simulation.seed} · {simulation.forecast_model} · {simulation.bartering_strategy}</small>
+        <small>{simulation.scenario} · Seed {simulation.seed} · {simulation.mode} stochastic run</small>
       </div>
       <div className="transport-controls">
         <button className="transport primary" onClick={onToggle} disabled={busy}>
@@ -76,17 +67,9 @@ export function SimulationControls({
         <label>Scenario<select aria-label="Simulation scenario" value={scenario} onChange={(event) => setScenario(event.target.value)} disabled={busy || simulation.running}>{simulation.available_scenarios.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label>Randomness<select aria-label="Randomness mode" value={randomMode ? 'Random' : 'Reproducible'} onChange={(event) => setRandomMode(event.target.value === 'Random')} disabled={busy || simulation.running}><option>Reproducible</option><option>Random</option></select></label>
         <label>Seed<input aria-label="Random seed" type="number" min="1" max="2147483647" value={seed} onChange={(event) => setSeed(event.target.value)} disabled={busy || simulation.running || randomMode} /></label>
-        <button className="config-action" onClick={() => onConfigure({ scenario, seed: randomMode ? null : Number(seed), random_mode: randomMode, forecast_model: forecastModel, shadow_models: shadowModels, training_window_minutes: trainingWindow, bartering_strategy: strategy, safety_margin_multiplier: safetyMargin, model_selection_period_minutes: selectionPeriod })} disabled={busy || simulation.running || (!randomMode && !Number(seed))}>Apply & restart</button>
+        <button className="config-action" onClick={() => onConfigure({ scenario, seed: randomMode ? null : Number(seed), random_mode: randomMode })} disabled={busy || simulation.running || (!randomMode && !Number(seed))}>Apply & restart</button>
         <button className="config-action" onClick={onRandomSeed} disabled={busy || simulation.running}><Dice5 size={14} /> Random seed</button>
         <button className="config-action" onClick={onRestartSameSeed} disabled={busy || simulation.running}><RotateCcw size={14} /> Same seed</button>
-      </div>
-      <div className="phase4-config">
-        <label>Decision model<select value={forecastModel} onChange={(event) => setForecastModel(event.target.value)} disabled={busy || simulation.running}>{simulation.available_models.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>Training window<select value={trainingWindow} onChange={(event) => setTrainingWindow(Number(event.target.value))} disabled={busy || simulation.running}>{simulation.available_training_windows.map((item) => <option value={item} key={item}>{item < 1440 ? `${item / 60} hours` : `${item / 1440} ${item === 1440 ? 'day' : 'days'}`}</option>)}</select></label>
-        <label>Bartering strategy<select value={strategy} onChange={(event) => setStrategy(event.target.value as typeof strategy)} disabled={busy || simulation.running}>{simulation.available_strategies.map((item) => <option key={item}>{item}</option>)}</select></label>
-        <label>Uncertainty margin<input type="number" min="0.25" max="3" step="0.25" value={safetyMargin} onChange={(event) => setSafetyMargin(Number(event.target.value))} disabled={busy || simulation.running} /></label>
-        <label>Model refresh<select value={selectionPeriod} onChange={(event) => setSelectionPeriod(Number(event.target.value))} disabled={busy || simulation.running}><option value={30}>30 min</option><option value={60}>60 min</option><option value={120}>2 hours</option><option value={360}>6 hours</option></select></label>
-        <details className="shadow-models"><summary>Shadow models ({shadowModels.length})</summary><div>{simulation.available_models.filter((item) => item !== 'Auto').map((item) => <label key={item}><input type="checkbox" checked={shadowModels.includes(item)} onChange={(event) => setShadowModels(event.target.checked ? [...shadowModels, item] : shadowModels.filter((value) => value !== item))} disabled={busy || simulation.running} /> {item}</label>)}</div></details>
       </div>
       <details className="manual-injection">
         <summary>Workload and failure injection</summary>

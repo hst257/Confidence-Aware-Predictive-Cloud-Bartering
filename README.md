@@ -1,35 +1,28 @@
 # Confidence-Aware Predictive Cloud Bartering
 
-Phase 4 academic prototype for a seeded stochastic cloud federation. It combines noisy workloads and capacity failures with strict-history workload forecasting, uncertainty-aware predictive bartering, emergency recovery, model evaluation, and reproducible strategy experiments.
+Stable Phase 3 prototype of a real-time, seeded stochastic cloud federation. Four providers generate noisy workloads and capacity events while a transparent simulated predictor estimates future demand. The marketplace uses prediction confidence, provider reputation, reservations, contracts, collateral, renegotiation, and emergency barter to move idle resources where they are needed.
 
 ## What is included
 
-- FastAPI + SQLAlchemy REST backend with a PostgreSQL-ready schema
-- React + Vite dashboard with provider, prediction, marketplace, contract, reputation, and event-log views
-- Automatically seeded Cloud A–D demo data
-- Reproducible seeded runs plus a fresh-random-seed mode
-- Persistent credit, collateral, reputation, renegotiation, and system-event histories
-- Independent stochastic workload, event, failure, forecast, marketplace, and emergency-recovery modules
-- Start/pause/resume/reset/step simulation clock with 1×–100× speed control
-- Stable, Normal, Volatile, Failure Test, and Stress Test presets
-- Provider personalities with correlated noise, office peaks, consumer bursts, batch demand, and different volatility/confidence characteristics
-- Seeded workload spikes and drops, abnormal events, partial/full capacity loss, named failure causes, and automatic recovery
-- Automatic 30-minute prediction cycles at +15m, +30m, +1h, +2h, and +4h horizons
-- A common forecasting interface with Naive, weighted Moving Average, Linear Trend, and additive Holt-Winters models
-- Independent CPU/RAM forecasts, configurable rolling training windows, safe short-history fallback, and automatic per-provider model selection
-- Shadow-model evaluation that never influences matching unless the model is selected for decisions
-- Forecasts based only on observations available at forecast time; future generated events stay hidden
-- Uncertainty/error/volatility/horizon-derived confidence, MAE, RMSE, MAPE, bias, failure attribution, and confidence calibration
-- Automatic multi-provider matching, future-capacity reservation, lifecycle, risk monitoring, renegotiation, and emergency reactive barter
-- Reactive Only, Predictive, and Confidence-Aware Predictive strategies with uncertainty-safe commitments and confidence-tier collateral
-- Live model, horizon, revision, predictive-vs-reactive, shortage, reaction-time, efficiency, resilience, credit, and run-comparison analytics
-- Persisted experiment configuration, same-seed comparison, descriptive statistics, and CSV/JSON export
-- Manual spike/drop/failure injection for demos and experiments
-- Provider drill-down monitoring pages and a filterable simulation event timeline
+- FastAPI + SQLAlchemy REST backend with PostgreSQL and SQLite support
+- React + Vite dashboard for providers, predictions, marketplace, contracts, reputation, analytics, and events
+- Automatically seeded Cloud A–D demo data and provider-specific workload personalities
+- Reproducible runs plus a fresh-random-seed mode
+- Start, pause, resume, reset, step, and 1×–100× simulation clock controls
+- Stable, Normal, Volatile, Failure Test, and Stress Test scenarios
+- Seeded workload noise, spikes, drops, partial or full capacity failures, and automatic recovery
+- Prediction cycles at +30m, +1h, +2h, and +4h horizons
+- Lightweight predictions based only on the current and historical simulated observations
+- Confidence-aware safe commitments and a fixed 16% collateral rate
+- Automatic multi-provider matching, future-capacity reservations, contract lifecycle, risk monitoring, and renegotiation
+- Emergency reactive barter when a shortage reaches the current simulation state
+- Forecast-error, confidence-calibration, shortage, resilience, credit, and predictive-versus-reactive analytics
+- Manual spike, drop, and failure injection
+- Persistent contract, credit, collateral, reputation, renegotiation, shortage, run, and system-event histories
 
 ## Run locally
 
-Prerequisites: Python 3.11+, Node 20+, and Docker (or an existing PostgreSQL 14+ server).
+Prerequisites: Python 3.11+, Node 20+, and Docker, or an existing PostgreSQL 14+ server.
 
 1. Start PostgreSQL:
 
@@ -58,68 +51,48 @@ Prerequisites: Python 3.11+, Node 20+, and Docker (or an existing PostgreSQL 14+
 
 Open <http://localhost:5173>. API documentation is at <http://localhost:8000/docs>.
 
-The database tables and demo providers are created automatically on API startup. The container publishes PostgreSQL on host port `55432` so it can coexist with a local PostgreSQL installation on the standard `5432` port. To run the backend without Docker for quick testing, set `DATABASE_URL=sqlite:///./cloud_barter.db` in `backend/.env`.
+The tables and four demo providers are created automatically on API startup. The included container publishes PostgreSQL on host port `55432`. For a quick backend-only run without Docker, set `DATABASE_URL=sqlite:///./cloud_barter.db` in `backend/.env`.
 
-## Phase 4 forecasting experiment
+## Simulation walkthrough
 
-1. Select a scenario, seed, decision model (or Auto), shadow models, rolling window, and strategy, then press **Apply & restart**.
-2. Choose `100×` and press **Start**, or step forward while paused for repeatable experiments.
-3. Watch baseline curves become noisy observed workloads. Event markers identify spikes, drops, failures, recoveries, contract risk, renegotiation, and emergency actions.
-4. Use the injection controls to trigger a critical spike or failure on a chosen provider.
-5. Open **Forecasting** to compare actual demand with forecasts, inspect errors by time/model/horizon, and track forecast revisions.
-6. Repeat the same seed under **Reactive Only**, **Predictive**, and **Confidence-Aware Predictive**. Use **Experiments** and **Comparison** for the saved run matrix, statistical summary, and exports.
+1. Choose a scenario and reproducible seed, then press **Apply & restart**.
+2. Select a speed and press **Start**, or use **Step +5m** for exact paused progression.
+3. Watch workload observations, prediction cycles, deficits, safe surplus capacity, reservations, and contracts update together.
+4. Open **Predictions** to inspect the four future horizons and confidence-aware safe commitments.
+5. Inject a spike, drop, or capacity failure for a selected provider and observe risk, renegotiation, or emergency recovery events.
+6. Use **Same seed** to return to Day 1 at 08:00 and reproduce the same stochastic workload and event schedule.
 
-At 100×, one simulated hour takes about 36 real seconds. **Same seed** returns to Day 1 at 08:00:00 and reproduces the same minute-level observations and event schedule. **Random seed** starts a fresh stochastic run. Historical run summaries remain available.
+At 100×, one simulated hour takes about 36 real seconds. Wall-clock speed does not change the deterministic outcome of a seeded run.
 
-The forecasting layer intentionally uses transparent, lightweight statistical models. It does not use future simulator state during training or inference, and it does not add heavy LSTM, Prophet, reinforcement-learning, or external dataset dependencies.
-
-## Phase 1 manual walkthrough
-
-Use the controls in order:
-
-1. **Reset demo** — restores the four providers and a clean ledger.
-2. **Generate predictions** — creates Cloud A's deficit and B/C/D surplus forecasts.
-3. **Run matching** — ranks possible suppliers and explains the score.
-4. **Create best contract** — schedules B → A and locks B's collateral.
-5. **Re-evaluate predictions** — reduces B's forecast and splits the agreement into B → A and C → A replacement contracts.
-6. **Start contracts** — activates all scheduled replacement contracts.
-7. **Complete contracts** — settles credits, releases collateral, measures forecast error, and updates scores.
-
-You can also simulate a provider failure against the next active or scheduled contract.
+The **Phase 1 manual lab** remains available for the original fixed teaching sequence: generate predictions, run matching, create a contract, revise the prediction, activate and complete contracts, or simulate a provider failure.
 
 ## Architecture
 
 ```text
 backend/app/
-  forecasting/        model interface, four forecasters, confidence, selection, evaluation
-  models/             SQLAlchemy entities and status enums
-  routers/            REST transport only
-  services/           matching, contracts, credits, reputation, renegotiation
-  simulation/         clock, seeded RNG, scenarios, workloads, events, failures, and run history
+  models/             SQLAlchemy entities and lifecycle enums
+  routers/            REST endpoints
+  services/           matching, contracts, credits, reputation, and renegotiation
+  simulation/         clock, predictor, seeded RNG, workloads, events, failures, and runs
 frontend/src/
-  components/         reusable dashboard components
-  pages/              workflow views
+  components/         reusable controls, charts, logs, and contract details
+  pages/              Phase 3 workflow and analytics views
 ```
 
-Business services depend on persisted predictions and resource states, not on future simulator knowledge. The random manager is stateless and keyed by seed, provider, and simulated minute, so wall-clock speed does not change a run's outcome.
+The prediction engine is deliberately small and explainable. It blends the provider's deterministic workload profile with the latest observed state, adds seeded forecast error, and lowers confidence for longer horizons, volatile recent history, and lower provider reliability. It never reads future resource states or future stochastic events.
 
-## Configuration
-
-The Phase 1 economic formulas and Phase 4 forecasting/risk defaults remain centralized in `backend/app/config.py`. Phase 3 scenario probabilities live in `backend/app/simulation/scenario_presets.py`, while provider behavior lives in `workload_profiles.py`.
-
-The preserved Phase 1 formulas include:
-
-- safe commitment confidence multiplier
-- collateral rate
-- matching score weights
-- SLA/reliability success and failure adjustments
-- contribution score weights
+Core economic and matching formulas are centralized in `backend/app/config.py`; scenario probabilities live in `backend/app/simulation/scenario_presets.py`; provider workload behavior lives in `backend/app/simulation/workload_profiles.py`.
 
 ## Tests
 
 ```powershell
 cd backend
-pytest
+.venv\Scripts\python.exe -m pytest -q
+
+cd ..\frontend
+npm run build
 ```
 
-The integration suite verifies the original Phase 1 contract workflow, Phase 2/3 simulation behavior, exact same-seed reproduction, all four Phase 4 models and five horizons, no-future-data boundaries, uncertainty output, decision-vs-shadow isolation, strategy comparison, and CSV/JSON experiment export.
+The integration suite covers the original Phase 1 contract workflow, deterministic and random Phase 3 simulation controls, prediction horizons and confidence safety, automatic predictive contracts and fixed collateral, future reservations, failure recovery, API validation, and same-seed reproducibility.
+
+Existing databases upgraded during Phase 4 may retain unused compatibility columns. Phase 3 does not expose or depend on them; they remain mapped only so rollback can operate safely against those databases without destructive schema changes.

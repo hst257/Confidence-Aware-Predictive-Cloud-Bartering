@@ -17,8 +17,6 @@ def auto_match_and_create(db: Session, cycle_id: str, simulation_time: datetime)
     """React to forecasts using business services; the engine owns no market rules."""
     settings = get_settings()
     state = db.get(SimulationState, 1)
-    if state.bartering_strategy == "Reactive Only":
-        return []
     candidates = [
         item for item in find_matches(db, cycle_id=cycle_id)
         if item.horizon_minutes == settings.planning_horizon_minutes

@@ -8,8 +8,6 @@ from ..models import (
     ResourceState,
     SimulationState,
 )
-from ..config import get_settings
-from ..forecasting.model_manager import AVAILABLE_MODELS
 from ..simulation.workload_generator import DEMO_PROVIDERS, seed_provider_workloads
 from ..simulation.clock import simulation_epoch
 from ..simulation.random_manager import random_seed
@@ -26,14 +24,7 @@ def reset_demo(
     scenario: str | None = None,
     random_mode: bool | None = None,
     generate_new_seed: bool = False,
-    forecast_model: str | None = None,
-    shadow_models: list[str] | None = None,
-    training_window_minutes: int | None = None,
-    bartering_strategy: str | None = None,
-    safety_margin_multiplier: float | None = None,
-    model_selection_period_minutes: int | None = None,
 ) -> None:
-    settings = get_settings()
     previous = db.get(SimulationState, 1)
     if previous and previous.current_run_id:
         finalize_run(db, previous)
@@ -56,22 +47,7 @@ def reset_demo(
         provider.successful_contracts = 0
         provider.failed_predictions = 0
 
-    selected_model = forecast_model or (previous.forecast_model if previous else settings.default_forecast_model)
-    selected_shadows = shadow_models if shadow_models is not None else (
-        previous.shadow_models
-        if previous is not None and previous.shadow_models is not None
-        else AVAILABLE_MODELS
-    )
-    selected_window = training_window_minutes or (previous.training_window_minutes if previous else settings.default_training_window_minutes)
-    selected_strategy = bartering_strategy or (previous.bartering_strategy if previous else "Confidence-Aware Predictive")
-    selected_margin = safety_margin_multiplier if safety_margin_multiplier is not None else (previous.safety_margin_multiplier if previous else settings.safety_margin_multiplier)
-    selected_period = model_selection_period_minutes or (previous.model_selection_period_minutes if previous else settings.model_selection_period_minutes)
-    run = create_run(
-        db, seed=selected_seed, scenario=selected_scenario, random_mode=selected_random_mode,
-        forecast_model=selected_model, shadow_models=selected_shadows,
-        training_window_minutes=selected_window, bartering_strategy=selected_strategy,
-        safety_margin_multiplier=selected_margin, model_selection_period_minutes=selected_period,
-    )
+    run = create_run(db, seed=selected_seed, scenario=selected_scenario, random_mode=selected_random_mode)
     state = previous or SimulationState(id=1, current_time=simulation_epoch())
     state.current_run_id = run.id
     state.current_time = simulation_epoch()
@@ -81,14 +57,6 @@ def reset_demo(
     state.scenario = selected_scenario
     state.random_mode = selected_random_mode
     state.configuration = scenario_configuration(selected_scenario)
-    state.forecast_model = selected_model
-    state.shadow_models = selected_shadows
-    state.training_window_minutes = selected_window
-    state.bartering_strategy = selected_strategy
-    state.safety_margin_multiplier = selected_margin
-    state.model_selection_period_minutes = selected_period
-    state.model_assignments = {}
-    state.last_model_selection_at = None
     state.last_real_tick = None
     state.last_sample_at = simulation_epoch()
     state.last_prediction_at = None
@@ -115,7 +83,7 @@ def reset_demo(
         "simulation.reset",
         f"Simulation run #{run.id} ready: {selected_scenario} scenario, seed {selected_seed}",
         simulation_time=simulation_epoch(),
-        details={"run_id": run.id, "seed": selected_seed, "scenario": selected_scenario, "forecast_model": selected_model, "strategy": selected_strategy},
+        details={"run_id": run.id, "seed": selected_seed, "scenario": selected_scenario},
     )
     db.commit()
 

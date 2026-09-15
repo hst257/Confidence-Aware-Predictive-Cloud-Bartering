@@ -13,7 +13,6 @@ from ..models import (
     Provider,
     ResourceState,
 )
-from ..forecasting.evaluator import evaluate_due_predictions
 from ..services.automatic_marketplace_service import auto_match_and_create
 from ..services.contract_service import complete_contract, fail_contract, transition_to_active
 from ..services.emergency_matching_service import process_current_shortages, react_to_failed_commitments
@@ -23,7 +22,7 @@ from .clock import advance_time
 from .event_generator import maybe_start_workload_events, resolve_finished_workload_events
 from .failure_generator import maybe_start_failure, resolve_finished_failures
 from .mutation_lock import simulation_mutation
-from .prediction_generator import generate_simulation_predictions
+from .prediction_generator import evaluate_due_predictions, generate_simulation_predictions
 from .run_service import update_run_progress
 from .simulation_state import get_or_create_state
 from .stochastic_workload import workload_sample

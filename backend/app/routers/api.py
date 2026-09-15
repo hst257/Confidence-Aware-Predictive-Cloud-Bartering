@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -38,10 +38,7 @@ from ..schemas import (
     InjectEventRequest,
 )
 from ..config import get_settings
-from ..services.analytics_service import analytics_summary, credit_timelines, forecasting_analytics, provider_analytics
-from ..services.experiment_service import compare_runs, export_runs
-from ..forecasting.confidence import CONFIDENCE_FORMULA
-from ..forecasting.model_manager import AVAILABLE_MODELS
+from ..services.analytics_service import analytics_summary, credit_timelines, provider_analytics
 from ..services.contract_service import complete_contract, create_contract, fail_contract, transition_to_active
 from ..services.event_service import record_event
 from ..services.matching_service import find_matches
@@ -83,7 +80,6 @@ def current_matches(db: Session):
 def prediction_payload(prediction: Prediction) -> dict:
     payload = PredictionOut.model_validate(prediction).model_dump()
     payload["provider_name"] = prediction.provider.name
-    payload["model_metadata"] = payload["model_metadata"] or {}
     return payload
 
 
@@ -156,7 +152,6 @@ def list_providers(db: Session = Depends(get_db)):
                 Prediction.run_id == simulation.current_run_id,
                 Prediction.provider_id == provider.id,
                 Prediction.superseded.is_(False),
-                Prediction.decision_forecast.is_(True),
             )
             .order_by(Prediction.simulation_generated_at.desc(), Prediction.horizon_minutes.desc(), Prediction.id.desc())
         )
@@ -502,36 +497,6 @@ def credit_analytics(db: Session = Depends(get_db)):
     return credit_timelines(db)
 
 
-@router.get("/forecasting/models")
-def forecasting_models():
-    return {"models": AVAILABLE_MODELS, "selector_options": ["Auto", *AVAILABLE_MODELS], "confidence_formula": CONFIDENCE_FORMULA}
-
-
-@router.get("/forecasting/analytics")
-def forecast_analytics(run_id: int | None = None, db: Session = Depends(get_db)):
-    return forecasting_analytics(db, run_id)
-
-
-def _parse_run_ids(value: str | None) -> list[int] | None:
-    if not value:
-        return None
-    try:
-        return [int(item) for item in value.split(",") if item.strip()]
-    except ValueError as exc:
-        raise HTTPException(status_code=422, detail="run_ids must be comma-separated integers") from exc
-
-
-@router.get("/experiments/comparison")
-def experiment_comparison(run_ids: str | None = None, db: Session = Depends(get_db)):
-    return compare_runs(db, _parse_run_ids(run_ids))
-
-
-@router.get("/experiments/export")
-def experiment_export(format: str = Query(default="csv", pattern="^(csv|json)$"), run_ids: str | None = None, db: Session = Depends(get_db)):
-    content, media_type = export_runs(db, _parse_run_ids(run_ids), format)
-    return Response(content=content, media_type=media_type, headers={"Content-Disposition": f'attachment; filename="phase4-experiments.{format}"'})
-
-
 @router.get("/simulation/runs")
 def simulation_runs(limit: int = Query(default=20, ge=1, le=100), db: Session = Depends(get_db)):
     return list_run_summaries(db, limit)
@@ -559,14 +524,6 @@ def _provider_analytics_payload(db: Session, provider_id: int, range_minutes: in
                 "forecast_bias": item.forecast_bias,
                 "event_impacted": item.event_impacted,
                 "successful": item.successful,
-                "model_name": item.model_name,
-                "horizon_minutes": item.horizon_minutes,
-                "cpu_squared_error": item.cpu_squared_error,
-                "ram_squared_error": item.ram_squared_error,
-                "cpu_percentage_error": item.cpu_percentage_error,
-                "ram_percentage_error": item.ram_percentage_error,
-                "failure_attribution": item.failure_attribution,
-                "training_insufficient": item.training_insufficient,
             }
             for item in data["evaluations"]
         ],
@@ -629,8 +586,6 @@ def simulation_snapshot(
             select(EventLog).where(EventLog.run_id == run_id).order_by(EventLog.id.desc()).limit(120)
         ).all()],
         "analytics": analytics_summary(db),
-        "forecasting": forecasting_analytics(db),
-        "experiment_comparison": compare_runs(db),
         "matches": [candidate.as_dict() for candidate in current_matches(db)],
         "transactions": [
             {**CreditTransactionOut.model_validate(item).model_dump(), "provider_name": item.provider.name}

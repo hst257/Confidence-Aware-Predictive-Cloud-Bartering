@@ -7,8 +7,8 @@ export function ProviderDetail({ data, onBack }: { data: ProviderAnalytics | nul
   if (!data) return <div className="panel empty">Provider analytics are loading…</div>
   const provider = data.provider
   const history = data.resource_history
-  const pastPredictions = data.predictions.filter((item) => item.decision_forecast && data.evaluations.some((evaluation) => evaluation.prediction_id === item.id))
-  const decisionPredictions = data.predictions.filter((item) => item.decision_forecast && !item.superseded)
+  const pastPredictions = data.predictions.filter((item) => data.evaluations.some((evaluation) => evaluation.prediction_id === item.id))
+  const activePredictions = data.predictions.filter((item) => !item.superseded)
   const markers: ChartMarker[] = data.stochastic_events.map((event) => ({
     id: event.id, time: event.start_time,
     label: `${event.name}: ${event.affected_resource} ${event.event_type === 'workload_drop' ? '−' : '+'}${event.event_type === 'capacity_failure' ? event.capacity_loss_percent : event.magnitude_percent}%`,
@@ -25,8 +25,8 @@ export function ProviderDetail({ data, onBack }: { data: ProviderAnalytics | nul
         <div><Activity /><span>Volatility</span><strong>{data.current_volatility.toFixed(2)}</strong></div>
         <div><CloudOff /><span>Capacity lost</span><strong>{provider.capacity_lost_cpu.toFixed(0)} CPU</strong></div>
         <div><Zap /><span>Active event</span><strong>{data.active_stochastic_events[0]?.name ?? 'None'}</strong></div>
-        <div><BrainCircuit /><span>Model / confidence</span><strong>{provider.latest_prediction ? `${provider.latest_prediction.model_name} · ${provider.latest_prediction.confidence.toFixed(0)}%` : '—'}</strong></div>
-        <div><Gauge /><span>Forecast uncertainty</span><strong>{provider.latest_prediction ? `±${provider.latest_prediction.uncertainty_cpu.toFixed(1)} CPU` : '—'}</strong></div>
+        <div><BrainCircuit /><span>Forecast confidence</span><strong>{provider.latest_prediction ? `${provider.latest_prediction.confidence.toFixed(0)}%` : '—'}</strong></div>
+        <div><Gauge /><span>Safe CPU commitment</span><strong>{provider.latest_prediction ? `${provider.latest_prediction.safe_cpu_commitment.toFixed(1)} CPU` : '—'}</strong></div>
         <div><Coins /><span>Predictive / emergency</span><strong>{data.predictive_contracts} / {data.emergency_contracts}</strong></div>
         <div><ShieldCheck /><span>SLA / forecast</span><strong>{provider.sla_reputation.toFixed(0)} / {provider.forecast_reliability.toFixed(0)}</strong></div>
       </div>
@@ -44,9 +44,9 @@ export function ProviderDetail({ data, onBack }: { data: ProviderAnalytics | nul
     </section>
     <section className="chart-grid-two">
       <ChartPanel><TimeSeriesChart title="Future CPU capacity" unit=" CPU" series={[
-        { name: 'Usable', color: 'var(--muted)', dashed: true, points: decisionPredictions.map((item) => ({ time: item.window_start, value: provider.current_state?.usable_cpu ?? provider.total_cpu })) },
-        { name: 'Predicted use', color: 'var(--violet)', points: decisionPredictions.map((item) => ({ time: item.window_start, value: item.predicted_cpu_usage })) },
-        { name: 'Safe barterable', color: 'var(--green)', points: decisionPredictions.map((item) => ({ time: item.window_start, value: item.safe_cpu_commitment })) },
+        { name: 'Usable', color: 'var(--muted)', dashed: true, points: activePredictions.map((item) => ({ time: item.window_start, value: provider.current_state?.usable_cpu ?? provider.total_cpu })) },
+        { name: 'Predicted use', color: 'var(--violet)', points: activePredictions.map((item) => ({ time: item.window_start, value: item.predicted_cpu_usage })) },
+        { name: 'Safe barterable', color: 'var(--green)', points: activePredictions.map((item) => ({ time: item.window_start, value: item.safe_cpu_commitment })) },
       ]} /></ChartPanel>
       <section className="panel forecast-score-panel"><span className="eyebrow">Forecast accuracy</span><h3>{data.forecast_metrics.predictions_evaluated} predictions evaluated</h3><div className="forecast-score"><strong>{data.forecast_metrics.success_rate.toFixed(1)}%</strong><span>successful forecasts</span></div><div className="metric-pairs"><div><span>CPU MAE</span><strong>{data.forecast_metrics.cpu_mae.toFixed(2)}</strong></div><div><span>RAM MAE</span><strong>{data.forecast_metrics.ram_mae.toFixed(2)}</strong></div><div><span>Forecast bias</span><strong>{data.forecast_metrics.forecast_bias.toFixed(2)}</strong></div><div><span>Event impacted</span><strong>{data.forecast_metrics.event_impacted_forecasts}</strong></div><div><span>Mean % error</span><strong>{data.forecast_metrics.percentage_error.toFixed(2)}%</strong></div><div><span>Avg confidence</span><strong>{data.forecast_metrics.average_confidence.toFixed(1)}%</strong></div></div></section>
     </section>

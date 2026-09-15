@@ -66,10 +66,7 @@ def create_contract(
     )
     db.add(contract)
     db.flush()
-    dynamic_confidence = (prediction.confidence if prediction and prediction.simulation_generated_at is not None else None)
-    if prediction is None and barter_type == "Emergency":
-        dynamic_confidence = provider.forecast_reliability
-    lock_collateral(db, contract, collateral_cost(cost, dynamic_confidence), simulation_time)
+    lock_collateral(db, contract, collateral_cost(cost), simulation_time)
     record_event(
         db,
         "contract.created",
