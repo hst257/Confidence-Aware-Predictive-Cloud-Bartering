@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, CircleDot, Filter } from 'lucide-react'
+import { WarningIcon, CheckCircleIcon, RecordIcon, FunnelIcon } from '@phosphor-icons/react'
 import type { Provider, SystemEvent } from '../types'
 
-const icon = { info: CircleDot, warning: AlertTriangle, error: AlertTriangle }
+const icon = { info: RecordIcon, warning: WarningIcon, error: WarningIcon }
 
 function simulationLabel(value: string | null, fallback: string) {
   const date = new Date(value ?? fallback)
@@ -26,7 +26,7 @@ export function EventLog({ events, providers }: { events: SystemEvent[]; provide
   return <aside className="event-panel panel">
     <div className="panel-title-row"><div><span className="eyebrow">Simulation history</span><h2>Event timeline</h2></div><span className="live-indicator"><i /> Live</span></div>
     <div className="event-filters">
-      <Filter size={13} />
+      <FunnelIcon size={13} />
       <select aria-label="Filter events by provider" value={provider} onChange={(event) => setProvider(event.target.value)}><option value="all">All providers</option>{providers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
       <select aria-label="Filter events by type" value={type} onChange={(event) => setType(event.target.value)}><option value="all">All events</option>{types.map((item) => <option key={item} value={item}>{item}</option>)}</select>
       <select aria-label="Filter events by contract" value={contract} onChange={(event) => setContract(event.target.value)}><option value="all">All contracts</option>{contracts.map((item) => <option key={item} value={item}>Contract #{item}</option>)}</select>
@@ -35,7 +35,7 @@ export function EventLog({ events, providers }: { events: SystemEvent[]; provide
     <div className="event-list">
       {filtered.length === 0 && <div className="empty compact">No events match these filters.</div>}
       {filtered.map((event, index) => {
-        const Icon = event.event_type === 'contract.completed' ? CheckCircle2 : icon[event.severity]
+        const Icon = event.event_type === 'contract.completed' ? CheckCircleIcon : icon[event.severity]
         return <div className={`event event-${event.severity}`} key={event.id}>
           <div className="event-rail"><Icon size={15} />{index < filtered.length - 1 && <span />}</div>
           <div><time>{simulationLabel(event.simulation_time, event.created_at)}</time><p>{event.message}</p><small>{event.event_type.replaceAll('.', ' · ')}</small></div>

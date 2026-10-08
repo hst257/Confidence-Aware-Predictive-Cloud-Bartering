@@ -85,7 +85,7 @@ export function DivergingBars({ title, values, unit = ' CPU' }: { title: string;
 
 export function ComparisonBars({ title, rows, value }: { title: string; rows: Array<{ name: string }>; value: (row: { name: string }) => number }) {
   return <div className="comparison-chart" role="img" aria-label={title}>
-    <div className="chart-title-row"><h3>{title}</h3><span>0–100%</span></div>
+    <div className="chart-title-row"><h3>{title}</h3><span>0-100%</span></div>
     {rows.map((row) => { const amount = value(row); return <div className="comparison-row" key={row.name}><strong>{row.name}</strong><div><span style={{ width: `${Math.min(100, amount)}%` }} /></div><em>{amount.toFixed(1)}%</em></div> })}
   </div>
 }

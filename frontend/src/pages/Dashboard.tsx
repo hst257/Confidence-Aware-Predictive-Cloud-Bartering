@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, AlertTriangle, BrainCircuit, CircleCheck, Coins, Cpu, Gauge, HardDrive, HeartPulse, Server, ShieldCheck, Siren, TrendingDown, TrendingUp, Zap } from 'lucide-react'
+import { PulseIcon, WarningIcon, BrainIcon, CheckCircleIcon, CoinsIcon, CpuIcon, GaugeIcon, HardDrivesIcon, HeartbeatIcon, StackIcon, ShieldCheckIcon, SirenIcon, TrendDownIcon, TrendUpIcon, LightningIcon } from '@phosphor-icons/react'
 import { ChartPanel, DivergingBars, TimeSeriesChart, type ChartMarker } from '../components/Charts'
 import { Meter } from '../components/Meter'
 import type { Provider, Snapshot } from '../types'
@@ -12,22 +12,22 @@ function ProviderCard({ provider, selected, onSelect, onDetails }: { provider: P
   const deficit = Boolean(prediction && (prediction.cpu_deficit > 0 || prediction.ram_deficit > 0))
   const impaired = provider.capacity_lost_cpu > 0 || provider.capacity_lost_ram > 0
   return <article className={`provider-live-card panel ${selected ? 'selected' : ''} ${deficit || impaired ? 'at-risk' : ''}`} onClick={onSelect}>
-    <div className="provider-head"><div className="provider-icon"><Server size={19} /></div><div><h3>{provider.name}</h3><span>{provider.personality}</span></div><i className={`health-dot ${deficit || impaired ? 'amber' : 'green'}`} /></div>
-    {provider.active_event && <div className="active-event-chip"><Zap size={12} /> {provider.active_event}</div>}
+    <div className="provider-head"><div className="provider-icon"><StackIcon size={19} /></div><div><h3>{provider.name}</h3><span>{provider.personality}</span></div><i className={`health-dot ${deficit || impaired ? 'amber' : 'green'}`} /></div>
+    {provider.active_event && <div className="active-event-chip"><LightningIcon size={12} /> {provider.active_event}</div>}
     <div className="util-pair">
-      <div><span><Cpu size={13} /> CPU</span><strong>{cpuPercent.toFixed(1)}%</strong><Meter value={cpuPercent} total={100} tone={cpuPercent > 90 ? 'amber' : 'cyan'} /><small>{state?.cpu_available.toFixed(1) ?? '—'} available · {state?.usable_cpu.toFixed(0) ?? provider.total_cpu} usable</small></div>
-      <div><span><HardDrive size={13} /> RAM</span><strong>{ramPercent.toFixed(1)}%</strong><Meter value={ramPercent} total={100} tone={ramPercent > 90 ? 'amber' : 'violet'} /><small>{state?.ram_available.toFixed(1) ?? '—'} GB available</small></div>
+      <div><span><CpuIcon size={13} /> CPU</span><strong>{cpuPercent.toFixed(1)}%</strong><Meter value={cpuPercent} total={100} tone={cpuPercent > 90 ? 'amber' : 'cyan'} /><small>{state?.cpu_available.toFixed(1) ?? '-'} available · {state?.usable_cpu.toFixed(0) ?? provider.total_cpu} usable</small></div>
+      <div><span><HardDrivesIcon size={13} /> RAM</span><strong>{ramPercent.toFixed(1)}%</strong><Meter value={ramPercent} total={100} tone={ramPercent > 90 ? 'amber' : 'violet'} /><small>{state?.ram_available.toFixed(1) ?? '-'} GB available</small></div>
     </div>
     <div className={`forecast-strip ${deficit ? 'deficit' : 'surplus'}`}>
-      {deficit ? <TrendingDown size={15} /> : <TrendingUp size={15} />}
+      {deficit ? <TrendDownIcon size={15} /> : <TrendUpIcon size={15} />}
       <span>{!prediction ? 'Awaiting first cycle' : deficit ? `${prediction.cpu_deficit.toFixed(1)} CPU deficit` : `${prediction.safe_cpu_commitment.toFixed(1)} safe CPU surplus`}</span>
-      <strong>{prediction ? `${prediction.confidence}%` : '—'}</strong>
+      <strong>{prediction ? `${prediction.confidence}%` : '-'}</strong>
     </div>
     <div className="provider-metric-grid">
-      <div><Activity /><span>Volatility</span><strong>{provider.current_volatility.toFixed(2)}</strong></div>
-      <div><AlertTriangle /><span>Capacity lost</span><strong>{provider.capacity_lost_cpu.toFixed(0)} CPU</strong></div>
-      <div><Coins /><span>Credits / collateral</span><strong>{provider.credit_balance.toFixed(0)} / {provider.locked_collateral.toFixed(1)}</strong></div>
-      <div><Gauge /><span>SLA / forecast</span><strong>{provider.sla_reputation.toFixed(0)} / {provider.forecast_reliability.toFixed(0)}</strong></div>
+      <div><PulseIcon /><span>Volatility</span><strong>{provider.current_volatility.toFixed(2)}</strong></div>
+      <div><WarningIcon /><span>Capacity lost</span><strong>{provider.capacity_lost_cpu.toFixed(0)} CPU</strong></div>
+      <div><CoinsIcon /><span>Credits / collateral</span><strong>{provider.credit_balance.toFixed(0)} / {provider.locked_collateral.toFixed(1)}</strong></div>
+      <div><GaugeIcon /><span>SLA / forecast</span><strong>{provider.sla_reputation.toFixed(0)} / {provider.forecast_reliability.toFixed(0)}</strong></div>
     </div>
     <button className="card-detail-button" onClick={(event) => { event.stopPropagation(); onDetails() }}>View details</button>
   </article>
@@ -36,7 +36,7 @@ function ProviderCard({ provider, selected, onSelect, onDetails }: { provider: P
 function markersFor(data: Snapshot, providerId: number): ChartMarker[] {
   const stochastic: ChartMarker[] = data.stochastic_events.filter((event) => event.provider_id === providerId).map((event) => ({
     id: `s-${event.id}`, time: event.start_time,
-    label: `${event.provider_name}: ${event.name} · ${event.affected_resource} ${event.event_type === 'workload_drop' ? '−' : '+'}${event.event_type === 'capacity_failure' ? event.capacity_loss_percent : event.magnitude_percent}%`,
+    label: `${event.provider_name}: ${event.name} · ${event.affected_resource} ${event.event_type === 'workload_drop' ? '-' : '+'}${event.event_type === 'capacity_failure' ? event.capacity_loss_percent : event.magnitude_percent}%`,
     kind: event.event_type.replaceAll('_', ' '),
     color: event.event_type === 'capacity_failure' ? 'var(--red)' : event.event_type === 'workload_drop' ? 'var(--green)' : 'var(--amber)',
   }))
@@ -65,14 +65,14 @@ export function Dashboard({ data, selectedProviderId, onSelectProvider, onProvid
   const currentUsable = resource === 'CPU' ? provider?.current_state?.usable_cpu ?? provider?.total_cpu ?? 0 : provider?.current_state?.usable_ram ?? provider?.total_ram ?? 0
   return <div className="page-stack">
     <section className="phase3-status-grid">
-      <div className="kpi"><Zap /><div><span>Active events</span><strong>{data.analytics.active_events}</strong><small>{data.analytics.active_failures} capacity failures</small></div></div>
-      <div className="kpi"><ShieldCheck /><div><span>Contract posture</span><strong>{data.analytics.active_contracts} active</strong><small>{data.analytics.at_risk_contracts} at risk · {data.analytics.predictive_contracts} predictive</small></div></div>
-      <div className="kpi"><BrainCircuit /><div><span>Forecast demand</span><strong>{data.analytics.predicted_deficits}</strong><small>{data.analytics.current_emergencies} current emergencies</small></div></div>
-      <div className="kpi"><CircleCheck /><div><span>Shortages prevented</span><strong>{data.analytics.shortages_prevented}</strong><small>{data.analytics.emergency_recoveries} emergency recoveries</small></div></div>
-      <div className="kpi"><Siren /><div><span>Unresolved shortages</span><strong>{data.analytics.unresolved_shortages}</strong><small>{data.analytics.average_reaction_time.toFixed(1)} min average reaction</small></div></div>
-      <div className="kpi"><HeartPulse /><div><span>System resilience</span><strong>{data.analytics.system_resilience_score.toFixed(1)}</strong><small>Project-specific simulation score</small></div></div>
-      <div className="kpi"><Activity /><div><span>Federation utilization</span><strong>{data.analytics.total_cpu_utilization.toFixed(1)}%</strong><small>{data.analytics.total_ram_utilization.toFixed(1)}% usable RAM</small></div></div>
-      <div className="kpi"><BrainCircuit /><div><span>Forecast accuracy</span><strong>{data.analytics.average_forecast_accuracy ? `${data.analytics.average_forecast_accuracy.toFixed(1)}%` : 'Learning'}</strong><small>{data.analytics.forecast_metrics.reduce((sum, item) => sum + item.predictions_evaluated, 0)} evaluated</small></div></div>
+      <div className="kpi"><LightningIcon /><div><span>Active events</span><strong>{data.analytics.active_events}</strong><small>{data.analytics.active_failures} capacity failures</small></div></div>
+      <div className="kpi"><ShieldCheckIcon /><div><span>Contract posture</span><strong>{data.analytics.active_contracts} active</strong><small>{data.analytics.at_risk_contracts} at risk · {data.analytics.predictive_contracts} predictive</small></div></div>
+      <div className="kpi"><BrainIcon /><div><span>Forecast demand</span><strong>{data.analytics.predicted_deficits}</strong><small>{data.analytics.current_emergencies} current emergencies</small></div></div>
+      <div className="kpi"><CheckCircleIcon /><div><span>Shortages prevented</span><strong>{data.analytics.shortages_prevented}</strong><small>{data.analytics.emergency_recoveries} emergency recoveries</small></div></div>
+      <div className="kpi"><SirenIcon /><div><span>Unresolved shortages</span><strong>{data.analytics.unresolved_shortages}</strong><small>{data.analytics.average_reaction_time.toFixed(1)} min average reaction</small></div></div>
+      <div className="kpi"><HeartbeatIcon /><div><span>System resilience</span><strong>{data.analytics.system_resilience_score.toFixed(1)}</strong><small>Project-specific simulation score</small></div></div>
+      <div className="kpi"><PulseIcon /><div><span>Federation utilization</span><strong>{data.analytics.total_cpu_utilization.toFixed(1)}%</strong><small>{data.analytics.total_ram_utilization.toFixed(1)}% usable RAM</small></div></div>
+      <div className="kpi"><BrainIcon /><div><span>Forecast accuracy</span><strong>{data.analytics.average_forecast_accuracy ? `${data.analytics.average_forecast_accuracy.toFixed(1)}%` : 'Learning'}</strong><small>{data.analytics.forecast_metrics.reduce((sum, item) => sum + item.predictions_evaluated, 0)} evaluated</small></div></div>
     </section>
 
     <div className="section-heading"><div><span className="eyebrow">Live stochastic federation</span><h2>Provider resources</h2></div><span className="updated">Correlated minute samples · events hidden from forecasts</span></div>
