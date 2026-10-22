@@ -13,7 +13,8 @@ Stable Phase 3 prototype of a real-time, seeded stochastic cloud federation. Ten
 - Stable, Normal, Volatile, Failure Test, and Stress Test scenarios
 - Seeded workload noise, spikes, drops, partial or full capacity failures, and automatic recovery
 - Prediction cycles at +30m, +1h, +2h, and +4h horizons
-- Lightweight predictions based only on the current and historical simulated observations
+- Five-minute forecast refreshes using the declared daily baseline, observed residual trends, and matured forecast errors
+- Estimated target-time demand ranges and conservative delivery-window capacity bounds
 - Confidence-aware safe commitments and a fixed 16% collateral rate
 - Automatic multi-provider matching, future-capacity reservations, contract lifecycle, risk monitoring, and renegotiation
 - Emergency reactive barter when a shortage reaches the current simulation state
@@ -68,6 +69,27 @@ At 100×, one simulated hour takes about 36 real seconds. Wall-clock speed does 
 
 The **Phase 1 manual lab** remains available for the original fixed teaching sequence: generate predictions, run matching, create a contract, revise the prediction, activate and complete contracts, or simulate a provider failure.
 
+## Proactive allocation
+
+Automatic allocation considers all four horizons, earliest window first. It subtracts incoming coverage separately for each overlapping time segment and combines suppliers, including CPU-only and RAM-only offers. The former three-hour cooldown no longer blocks other uncovered windows. Supplier reservations use peak concurrent commitments, not the sum of unrelated future reservations.
+
+The predictor fits a damped residual level/trend around each declared workload profile. It no longer adds artificial forecast noise. Target-time error ranges use matured errors for the same horizon, with an observed-spread/cold-start fallback. Safe supply and anticipated demand use the upper estimate across the full delivery window. The baseline is still a simulator prior, not a model trained on external cloud telemetry; future stochastic events and future resource observations remain hidden. Confidence blends a bounded prior score with observed interval coverage and is not a probability guarantee.
+
+Prediction responses add nullable `cpu_lower_bound`, `cpu_upper_bound`, `ram_lower_bound`, `ram_upper_bound`, `planning_cpu_upper`, and `planning_ram_upper`, plus observation/calibration sample counts. Hover over predicted usage, direction, or confidence in the existing table for their explanations. Older/manual predictions have no ranges. Startup adds compatible columns without deleting history or resetting the run. Existing emergency contracts remain emergency contracts; the new policy takes effect on subsequent forecast cycles.
+
+Short rolling reservations are priced proportionally to their delivery duration at the configured hourly CPU/RAM rates. The original fixed-price manual lab is unchanged. Pooled allocations and automatic replacements are atomic: failed funding leaves no partial contracts or collateral. Emergency fallback checks growing shortages even after an earlier prevention, and counts deliverable supplier capacity rather than face-value promises.
+
+### Seeded policy comparison
+
+`backend/scripts/evaluate_proactive.py` uses fresh in-memory databases; it never resets the live application. It measures physically deliverable advance coverage per provider-minute, unresolved provider-minutes, point forecast MAE, lead time, and unused reserved CPU/RAM time. Contract counts alone are not a quality measure.
+
+```powershell
+cd backend
+.venv\Scripts\python.exe scripts/evaluate_proactive.py --cases Normal:4281 Volatile:9017 --output benchmarks/proactive_after.json
+```
+
+For a previous-policy replay, pass `--backend-root` pointing to an archived backend from commit `eb8384e5da3cb1c69fbb0119b1cf822a750cb5c9`; the same evaluator supports both versions. Compare workload hashes before interpreting results. Results cover a small seeded experiment, not a general accuracy guarantee. Reports are in `backend/benchmarks/`.
+
 ## Architecture
 
 ```text
@@ -96,5 +118,7 @@ npm run build
 ```
 
 The integration suite covers the original Phase 1 contract workflow, deterministic and random Phase 3 simulation controls, prediction horizons and confidence safety, automatic predictive contracts and fixed collateral, future reservations, failure recovery, API validation, and same-seed reproducibility.
+
+Focused tests in `backend/tests/test_proactive_planning.py` cover multi-supplier allocation, all horizons, partial-window top-ups, idempotence, reservation concurrency, duration pricing, atomic budget rollback, impaired delivery, emergency retries, and future-observation leakage. Set `TEST_DATABASE_URL` to a temporary SQLite database for a fresh full-suite run; this is separate from the live `DATABASE_URL`.
 
 Existing databases upgraded during Phase 4 may retain unused compatibility columns. Phase 3 does not expose or depend on them; they remain mapped only so rollback can operate safely against those databases without destructive schema changes.

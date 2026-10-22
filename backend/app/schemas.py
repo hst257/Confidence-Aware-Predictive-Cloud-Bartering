@@ -55,6 +55,14 @@ class PredictionOut(OrmModel):
     horizon_minutes: int = 0
     cycle_id: str | None = None
     recent_volatility: float = 0
+    cpu_lower_bound: float | None = None
+    cpu_upper_bound: float | None = None
+    ram_lower_bound: float | None = None
+    ram_upper_bound: float | None = None
+    planning_cpu_upper: float | None = None
+    planning_ram_upper: float | None = None
+    forecast_samples: int = 0
+    calibration_samples: int = 0
     kind: PredictionKind
     superseded: bool
 

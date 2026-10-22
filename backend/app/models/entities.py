@@ -84,6 +84,14 @@ class Prediction(Base):
     horizon_minutes: Mapped[int] = mapped_column(Integer, default=0)
     cycle_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     recent_volatility: Mapped[float] = mapped_column(Float, default=0)
+    cpu_lower_bound: Mapped[float | None] = mapped_column(Float, nullable=True)
+    cpu_upper_bound: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ram_lower_bound: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ram_upper_bound: Mapped[float | None] = mapped_column(Float, nullable=True)
+    planning_cpu_upper: Mapped[float | None] = mapped_column(Float, nullable=True)
+    planning_ram_upper: Mapped[float | None] = mapped_column(Float, nullable=True)
+    forecast_samples: Mapped[int] = mapped_column(Integer, default=0)
+    calibration_samples: Mapped[int] = mapped_column(Integer, default=0)
     # Compatibility-only Phase 4 columns. They remain mapped so an existing
     # Phase 4 database can accept Phase 3 inserts, but no Phase 3 service reads
     # or exposes them.

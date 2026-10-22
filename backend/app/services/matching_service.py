@@ -4,7 +4,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..config import get_settings
-from ..models import ContractStatus, Prediction, Provider, ResourceState, SimulationState
+from ..models import Prediction, Provider, ResourceState, SimulationState
+from .reservation_service import overlaps, peak
 
 
 @dataclass
@@ -49,18 +50,20 @@ def collateral_cost(barter_cost: float) -> float:
 
 
 def _committed(db: Session, provider_id: int, prediction: Prediction) -> tuple[float, float]:
-    from ..models import BarterContract
+    contracts = overlaps(db, prediction.run_id, provider_id, prediction.window_start, prediction.window_end)
+    return peak(contracts, prediction.window_start, prediction.window_end)
 
-    contracts = db.scalars(
-        select(BarterContract).where(
-            BarterContract.provider_id == provider_id,
-            BarterContract.run_id == prediction.run_id,
-            BarterContract.status.in_([ContractStatus.PROPOSED, ContractStatus.SCHEDULED, ContractStatus.AT_RISK, ContractStatus.ACTIVE]),
-            BarterContract.start_time < prediction.window_end,
-            BarterContract.end_time > prediction.window_start,
-        )
-    ).all()
-    return sum(item.cpu_amount for item in contracts), sum(item.ram_amount for item in contracts)
+
+def score_capacity_match(provider: Provider, confidence: float, cpu_fit: float, ram_fit: float) -> float:
+    settings = get_settings()
+    return round(100 * (
+        settings.confidence_weight * confidence / 100
+        + settings.reliability_weight * provider.forecast_reliability / 100
+        + settings.sla_weight * provider.sla_reputation / 100
+        + settings.capacity_weight * (cpu_fit + ram_fit) / 2
+        + settings.contribution_weight * min(provider.contribution_score / 100, 1)
+        + settings.credit_balance_weight * min(provider.credit_balance / 250, 1)
+    ), 1)
 
 
 def find_matches(
@@ -69,7 +72,6 @@ def find_matches(
     excluded_provider_ids: set[int] | None = None,
     cycle_id: str | None = None,
 ) -> list[MatchCandidate]:
-    settings = get_settings()
     state = db.get(SimulationState, 1)
     if not state or not state.current_run_id:
         return []
@@ -113,14 +115,7 @@ def find_matches(
             cpu_fit = 1 if demand.cpu_deficit == 0 else cpu / demand.cpu_deficit
             ram_fit = 1 if demand.ram_deficit == 0 else ram / demand.ram_deficit
             capacity_fit = (cpu_fit + ram_fit) / 2
-            score = 100 * (
-                settings.confidence_weight * supply.confidence / 100
-                + settings.reliability_weight * provider.forecast_reliability / 100
-                + settings.sla_weight * provider.sla_reputation / 100
-                + settings.capacity_weight * capacity_fit
-                + settings.contribution_weight * min(provider.contribution_score / 100, 1)
-                + settings.credit_balance_weight * min(provider.credit_balance / 250, 1)
-            )
+            score = score_capacity_match(provider, supply.confidence, cpu_fit, ram_fit)
             cost = resource_cost(cpu, ram)
             if consumer.credit_balance < cost:
                 continue

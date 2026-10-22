@@ -28,10 +28,11 @@ class Settings(BaseSettings):
     simulation_start_iso: str = "2026-01-01T08:00:00"
     simulation_tick_real_seconds: float = 0.25
     resource_sample_seconds: int = 60
-    prediction_interval_minutes: int = 30
+    prediction_interval_minutes: int = 5
     prediction_horizons_minutes: str = "30,60,120,240"
     planning_horizon_minutes: int = 240
     contract_duration_minutes: int = 60
+    # Accepted for old .env files; rolling allocation now uses interval coverage.
     contract_planning_cooldown_minutes: int = 180
     step_forward_minutes: int = 5
     max_history_points: int = 720

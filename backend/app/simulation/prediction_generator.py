@@ -15,7 +15,7 @@ from ..models import (
     StochasticEvent,
 )
 from ..services.event_service import record_event
-from .random_manager import normal
+from .adaptive_forecast import estimate
 from .workload_profiles import personality, workload_at
 
 
@@ -215,19 +215,36 @@ def generate_simulation_predictions(db: Session, simulation_time: datetime) -> l
         if latest is None:
             continue
         profile = personality(provider.name)
+        observations = list(db.scalars(select(ResourceState).where(
+            ResourceState.run_id == state.current_run_id, ResourceState.provider_id == provider.id,
+            ResourceState.simulation_time <= simulation_time,
+        ).order_by(ResourceState.simulation_time.desc(), ResourceState.id.desc()).limit(60)).all())[::-1]
+        cpu_history = [((item.simulation_time - simulation_time).total_seconds() / 60, item.cpu_usage, item.baseline_cpu) for item in observations]
+        ram_history = [((item.simulation_time - simulation_time).total_seconds() / 60, item.ram_usage, item.baseline_ram) for item in observations]
+        matured = db.execute(select(PredictionEvaluation, Prediction).join(
+            Prediction, Prediction.id == PredictionEvaluation.prediction_id,
+        ).where(
+            PredictionEvaluation.run_id == state.current_run_id,
+            PredictionEvaluation.provider_id == provider.id,
+            PredictionEvaluation.simulation_time <= simulation_time,
+            Prediction.window_start <= simulation_time,
+        ).order_by(PredictionEvaluation.simulation_time.desc(), PredictionEvaluation.id.desc()).limit(240)).all()
         for horizon in settings.prediction_horizons:
             target = simulation_time + timedelta(minutes=horizon)
-            baseline = workload_at(provider.name, target)
-            baseline_weight = min(0.90, 0.65 + horizon / 600)
             volatility = max(0.0, latest.volatility)
-            error_scale = 0.012 + profile["noise"] * 0.008 + min(volatility, 12) * 0.0025 + horizon / 240 * 0.025
-            key = (provider.name, simulation_time.strftime("%Y-%m-%dT%H:%M"), horizon)
-            predicted_cpu = baseline.cpu * baseline_weight + latest.cpu_usage * (1 - baseline_weight)
-            predicted_ram = baseline.ram * baseline_weight + latest.ram_usage * (1 - baseline_weight)
-            predicted_cpu += normal(state.seed, *key, "forecast-cpu") * provider.total_cpu * error_scale
-            predicted_ram += normal(state.seed, *key, "forecast-ram") * provider.total_ram * error_scale
-            predicted_cpu = round(max(0, min(provider.total_cpu * 1.65, predicted_cpu)), 2)
-            predicted_ram = round(max(0, min(provider.total_ram * 1.65, predicted_ram)), 2)
+            # The baseline is the simulator's declared daily profile, not future
+            # observations or the hidden stochastic-event schedule. Sample the
+            # entire delivery window so a supplier's mid-window peak is safe.
+            offsets = sorted({0, max(0, settings.contract_duration_minutes - 1), *range(0, settings.contract_duration_minutes, 5)})
+            baseline = [(offset, workload_at(provider.name, target + timedelta(minutes=offset))) for offset in offsets]
+            errors = [(evaluation, prediction) for evaluation, prediction in matured if prediction.horizon_minutes == horizon][:60]
+            cpu = estimate(cpu_history, [(offset, point.cpu) for offset, point in baseline],
+                [evaluation.actual_cpu_usage - prediction.predicted_cpu_usage for evaluation, prediction in errors],
+                provider.total_cpu, horizon, profile["noise"])
+            ram = estimate(ram_history, [(offset, point.ram) for offset, point in baseline],
+                [evaluation.actual_ram_usage - prediction.predicted_ram_usage for evaluation, prediction in errors],
+                provider.total_ram, horizon, profile["noise"])
+            predicted_cpu, predicted_ram = cpu.mean, ram.mean
 
             # Zero is a real full outage, not an absent capacity observation.
             usable_cpu = latest.usable_cpu
@@ -237,8 +254,11 @@ def generate_simulation_predictions(db: Session, simulation_time: datetime) -> l
             horizon_penalty = horizon / 60 * 2.8
             volatility_penalty = min(18, volatility * 1.8)
             reliability_adjustment = (provider.forecast_reliability - 80) * 0.18
-            confidence = round(max(45, min(98, profile["base_confidence"] - horizon_penalty - volatility_penalty + reliability_adjustment)), 2)
-            confidence_factor = confidence / 100
+            prior = max(45, min(98, profile["base_confidence"] - horizon_penalty - volatility_penalty + reliability_adjustment))
+            calibrated = [(evaluation, prediction) for evaluation, prediction in errors if prediction.cpu_lower_bound is not None and prediction.ram_lower_bound is not None]
+            covered = sum(prediction.cpu_lower_bound <= evaluation.actual_cpu_usage <= prediction.cpu_upper_bound
+                and prediction.ram_lower_bound <= evaluation.actual_ram_usage <= prediction.ram_upper_bound for evaluation, prediction in calibrated)
+            confidence = round(max(45, min(98, (covered * 100 + prior * 10) / (len(calibrated) + 10))), 2)
             reliability_factor = provider.forecast_reliability / 100
             prediction = Prediction(
                 run_id=state.current_run_id,
@@ -247,10 +267,14 @@ def generate_simulation_predictions(db: Session, simulation_time: datetime) -> l
                 predicted_ram_usage=predicted_ram,
                 predicted_cpu_spare=cpu_spare,
                 predicted_ram_spare=ram_spare,
-                cpu_deficit=round(max(0, predicted_cpu - usable_cpu), 2),
-                ram_deficit=round(max(0, predicted_ram - usable_ram), 2),
-                safe_cpu_commitment=round(cpu_spare * confidence_factor * reliability_factor, 2),
-                safe_ram_commitment=round(ram_spare * confidence_factor * reliability_factor, 2),
+                cpu_deficit=round(max(0, cpu.window_upper - usable_cpu), 2),
+                ram_deficit=round(max(0, ram.window_upper - usable_ram), 2),
+                safe_cpu_commitment=round(max(0, usable_cpu - cpu.window_upper) * reliability_factor, 2),
+                safe_ram_commitment=round(max(0, usable_ram - ram.window_upper) * reliability_factor, 2),
+                cpu_lower_bound=cpu.lower, cpu_upper_bound=cpu.upper,
+                ram_lower_bound=ram.lower, ram_upper_bound=ram.upper,
+                planning_cpu_upper=cpu.window_upper, planning_ram_upper=ram.window_upper,
+                forecast_samples=len(observations), calibration_samples=len(calibrated),
                 confidence=confidence,
                 window_start=target,
                 window_end=target + timedelta(minutes=settings.contract_duration_minutes),
@@ -349,7 +373,10 @@ def evaluate_due_predictions(db: Session, simulation_time: datetime) -> int:
         cpu_percentage = cpu_error / max(actual.cpu_usage, 1) * 100
         ram_percentage = ram_error / max(actual.ram_usage, 1) * 100
         percentage_error = round((cpu_percentage + ram_percentage) / 2, 2)
-        successful = percentage_error <= max(5, 100 - prediction.confidence)
+        successful = (
+            prediction.cpu_lower_bound <= actual.cpu_usage <= prediction.cpu_upper_bound
+            and prediction.ram_lower_bound <= actual.ram_usage <= prediction.ram_upper_bound
+        ) if prediction.cpu_lower_bound is not None and prediction.ram_lower_bound is not None else percentage_error <= max(5, 100 - prediction.confidence)
         db.add(PredictionEvaluation(
             run_id=state.current_run_id,
             prediction_id=prediction.id,

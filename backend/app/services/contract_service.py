@@ -29,6 +29,7 @@ def create_contract(
     barter_type: str = "Predictive",
     emergency_reason: str | None = None,
     reaction_time_minutes: float | None = None,
+    prorate: bool = False,
 ) -> BarterContract:
     provider = db.get(Provider, provider_id)
     consumer = db.get(Provider, consumer_id)
@@ -39,7 +40,10 @@ def create_contract(
         raise HTTPException(status_code=422, detail="Invalid provider/consumer prediction combination")
     if end_time <= start_time:
         raise HTTPException(status_code=422, detail="Contract end must be after its start")
-    cost = resource_cost(cpu_amount, ram_amount)
+    # Rolling planners may reserve a five-minute uncovered tail of an hour.
+    # Price those segments by duration; retain fixed Phase 1/manual economics.
+    factor = (end_time - start_time).total_seconds() / 3600 if prorate else 1
+    cost = round(resource_cost(cpu_amount, ram_amount) * factor, 2)
     state = db.get(SimulationState, 1)
     run_id = prediction.run_id if prediction else (state.current_run_id if state else None)
     if available_credit(db, consumer, run_id) < cost:

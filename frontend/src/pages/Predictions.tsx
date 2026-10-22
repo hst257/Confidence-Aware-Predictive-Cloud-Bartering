@@ -19,11 +19,11 @@ export function Predictions({ predictions }: { predictions: Prediction[] }) {
                   <tr key={p.id}>
                     <td><strong>{p.provider_name}</strong><small>Prediction #{p.id}</small></td>
                     <td><strong>+{p.horizon_minutes || 'manual'}{p.horizon_minutes ? 'm' : ''}</strong><small>{new Date(p.window_start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</small></td>
-                    <td><span className={`direction ${deficit ? 'deficit' : 'surplus'}`}>{deficit ? <ArrowDownRightIcon size={15} /> : <ArrowUpRightIcon size={15} />}{deficit ? 'Deficit' : 'Surplus'}</span></td>
-                    <td>{p.predicted_cpu_usage} CPU<small>{p.predicted_ram_usage} GB RAM</small></td>
+                    <td><span title={p.planning_cpu_upper != null ? `Window upper demand: ${p.planning_cpu_upper} CPU / ${p.planning_ram_upper} GB RAM. Risk can precede a shortage in the point estimate.` : undefined} className={`direction ${deficit ? 'deficit' : 'surplus'}`}>{deficit ? <ArrowDownRightIcon size={15} /> : <ArrowUpRightIcon size={15} />}{deficit ? 'Deficit' : 'Surplus'}</span></td>
+                    <td title={p.cpu_lower_bound != null ? `Estimated target-time range: ${p.cpu_lower_bound}–${p.cpu_upper_bound} CPU; ${p.ram_lower_bound}–${p.ram_upper_bound} GB RAM` : undefined}>{p.predicted_cpu_usage} CPU<small>{p.predicted_ram_usage} GB RAM</small></td>
                     <td>{p.predicted_cpu_spare} CPU<small>{p.predicted_ram_spare} GB RAM</small></td>
                     <td>{p.safe_cpu_commitment} CPU<small>{p.safe_ram_commitment} GB RAM</small></td>
-                    <td><div className="score-inline"><ShieldCheckIcon size={15} /><strong>{p.confidence}%</strong></div></td>
+                    <td title={p.forecast_samples ? `${p.forecast_samples} observations; ${p.calibration_samples ?? 0} matured forecasts used for confidence. Estimated coverage, not a guarantee.` : undefined}><div className="score-inline"><ShieldCheckIcon size={15} /><strong>{p.confidence}%</strong></div></td>
                     <td><span className={`kind kind-${p.kind.toLowerCase()}`}>{p.kind}</span><small>{new Date(p.window_end).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} end</small></td>
                   </tr>
                 )

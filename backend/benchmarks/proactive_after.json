@@ -1,0 +1,44 @@
+{
+  "label": "after",
+  "forecast_interval_minutes": 5,
+  "results": [
+    {
+      "scenario": "Normal",
+      "seed": 4281,
+      "minutes": 360,
+      "workload_sha256": "7974669ab8e5baf20f752c1473c9752c848036b6eeb9056c4d991bbb7e71df0a",
+      "predictive_contracts": 258,
+      "emergency_contracts": 0,
+      "shortage_provider_minutes": 217,
+      "prevented_provider_minutes": 171,
+      "prevention_percent": 78.8,
+      "unresolved_provider_minutes": 46,
+      "mean_advance_minutes": 232.02,
+      "unused_reserved_cpu_minutes": 4970.97,
+      "reserved_cpu_minutes": 8869.84,
+      "unused_reserved_ram_gb_minutes": 4558.15,
+      "reserved_ram_gb_minutes": 8645.56,
+      "cpu_mae": 1.232,
+      "ram_mae": 2.763
+    },
+    {
+      "scenario": "Volatile",
+      "seed": 9017,
+      "minutes": 360,
+      "workload_sha256": "e3d4aa680485aaf966a7f604e9cb1ccb8ba602c3fc003b9613af929d769c254b",
+      "predictive_contracts": 892,
+      "emergency_contracts": 0,
+      "shortage_provider_minutes": 256,
+      "prevented_provider_minutes": 200,
+      "prevention_percent": 78.12,
+      "unresolved_provider_minutes": 56,
+      "mean_advance_minutes": 165.24,
+      "unused_reserved_cpu_minutes": 8847.91,
+      "reserved_cpu_minutes": 13373.14,
+      "unused_reserved_ram_gb_minutes": 19217.73,
+      "reserved_ram_gb_minutes": 23523.47,
+      "cpu_mae": 2.662,
+      "ram_mae": 3.561
+    }
+  ]
+}

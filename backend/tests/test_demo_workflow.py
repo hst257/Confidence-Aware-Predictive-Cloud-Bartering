@@ -3,7 +3,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from unittest.mock import patch
 
-os.environ["DATABASE_URL"] = "sqlite:///./test_cloud_barter.db"
+os.environ["DATABASE_URL"] = os.environ.get("TEST_DATABASE_URL", "sqlite:///./test_cloud_barter.db")
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, delete, select
@@ -26,6 +26,7 @@ from app.models import (
 )
 from app.services.demo_service import reset_demo, seed_if_empty
 from app.simulation.workload_generator import DEMO_PROVIDERS
+from app.simulation.random_manager import choice as seeded_choice
 
 
 def post_ok(client: TestClient, path: str, **kwargs):
@@ -352,7 +353,12 @@ def test_phase3_simulated_predictions_are_deterministic_and_confidence_aware():
         assert all(item["safe_cpu_commitment"] <= item["predicted_cpu_spare"] for item in active)
         assert all(item["safe_ram_commitment"] <= item["predicted_ram_spare"] for item in active)
         long_range = {item["provider_name"]: item for item in active if item["horizon_minutes"] == 240}
-        assert long_range["Cloud A"]["confidence"] > long_range["Cloud D"]["confidence"]
+        assert all(45 <= item["confidence"] <= 98 for item in active)
+        assert all(item["cpu_lower_bound"] <= item["predicted_cpu_usage"] <= item["cpu_upper_bound"] for item in active)
+        assert all(item["planning_cpu_upper"] >= item["cpu_upper_bound"] for item in active)
+        assert all(item["forecast_samples"] > 0 for item in active)
+        assert any(item["calibration_samples"] > 0 for item in active)
+        assert len(long_range) == 10
         assert "model_name" not in active[0]
         assert client.get("/api/forecasting/models").status_code == 404
         assert client.get("/api/experiments/comparison").status_code == 404
@@ -383,6 +389,7 @@ def test_phase3_failure_triggers_automatic_pre_start_renegotiation():
         scheduled = next(
             item for item in client.get("/api/contracts").json()
             if item["status"] == "Scheduled" and item["barter_type"] == "Predictive"
+            and item["start_time"].endswith("12:00:00")
         )
 
         # At 10:00 the +2h prediction revisits this contract's 12:00 start.
@@ -390,7 +397,10 @@ def test_phase3_failure_triggers_automatic_pre_start_renegotiation():
         # small contract after a 50% failure. Guarantee a full outage here so
         # this test exercises risk detection, not a particular supplier's size.
         post_ok(client, "/api/simulation/step", json={"minutes": 114})
-        with patch("app.simulation.failure_generator.LOSS_LEVELS", [100]):
+        def full_outage(seed, values, *parts):
+            return "Both" if parts[-1] == "resource" else seeded_choice(seed, values, *parts)
+
+        with patch("app.simulation.failure_generator.LOSS_LEVELS", [100]), patch("app.simulation.failure_generator.choice", side_effect=full_outage):
             post_ok(client, "/api/simulation/events/inject", json={
                 "provider_id": scheduled["provider_id"], "kind": "failure", "severity": "critical",
             })

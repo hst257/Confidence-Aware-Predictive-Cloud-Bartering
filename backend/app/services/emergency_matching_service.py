@@ -41,7 +41,23 @@ def _incoming(db: Session, run_id: int, consumer_id: int, now: datetime, barter_
     if barter_type:
         query = query.where(BarterContract.barter_type == barter_type)
     items = db.scalars(query).all()
-    return sum(item.cpu_amount for item in items), sum(item.ram_amount for item in items)
+    cpu = ram = 0.0
+    for item in items:
+        supplied = _state_at(db, run_id, item.provider_id, now)
+        if supplied is None:
+            continue
+        outgoing = db.scalars(select(BarterContract).where(
+            BarterContract.run_id == run_id, BarterContract.provider_id == item.provider_id,
+            BarterContract.status.in_([ContractStatus.SCHEDULED, ContractStatus.ACTIVE]),
+            BarterContract.start_time <= now, BarterContract.end_time > now,
+        )).all()
+        total_cpu = sum(contract.cpu_amount for contract in outgoing)
+        total_ram = sum(contract.ram_amount for contract in outgoing)
+        # Count physically deliverable capacity, not an impaired supplier's
+        # face-value promise. Share scarce capacity across its live contracts.
+        cpu += item.cpu_amount * min(1, supplied.cpu_available / total_cpu) if total_cpu else 0
+        ram += item.ram_amount * min(1, supplied.ram_available / total_ram) if total_ram else 0
+    return round(cpu, 2), round(ram, 2)
 
 
 def _allocate_emergency(
@@ -124,10 +140,10 @@ def process_current_shortages(db: Session, now: datetime) -> None:
             ShortageEvent.provider_id == provider.id,
             ShortageEvent.detected_at >= now - timedelta(minutes=30),
         ).order_by(ShortageEvent.detected_at.desc()))
-        if recent:
-            continue
         predictive_cpu, predictive_ram = _incoming(db, state.current_run_id, provider.id, now, "Predictive")
         if predictive_cpu + 0.01 >= raw_cpu and predictive_ram + 0.01 >= raw_ram:
+            if recent and recent.resolution_type == "Predictive":
+                continue
             shortage = ShortageEvent(
                 run_id=state.current_run_id, provider_id=provider.id, detected_at=now,
                 cpu_deficit=round(raw_cpu, 2), ram_deficit=round(raw_ram, 2),
@@ -143,6 +159,13 @@ def process_current_shortages(db: Session, now: datetime) -> None:
         emergency_cpu, emergency_ram = _incoming(db, state.current_run_id, provider.id, now, "Emergency")
         cpu_needed = max(0, raw_cpu - predictive_cpu - emergency_cpu)
         ram_needed = max(0, raw_ram - predictive_ram - emergency_ram)
+        if cpu_needed <= 0.01 and ram_needed <= 0.01:
+            continue
+        # Deduplicate failed retries, not detection: a larger shortage must be
+        # reconsidered even if a smaller one was prevented moments earlier.
+        if recent and recent.outcome == "Unresolved" and recent.detected_at > now - timedelta(minutes=5):
+            if cpu_needed <= recent.details.get("remaining_cpu", 0) + 0.01 and ram_needed <= recent.details.get("remaining_ram", 0) + 0.01:
+                continue
         record_event(
             db, "emergency.initiated",
             f"Emergency barter initiated for {provider.name}: current deficit {cpu_needed:.1f} CPU / {ram_needed:.1f} GB",

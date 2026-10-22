@@ -18,6 +18,7 @@ from ..services.contract_service import complete_contract, fail_contract, transi
 from ..services.emergency_matching_service import process_current_shortages, react_to_failed_commitments
 from ..services.event_service import record_event
 from ..services.renegotiation_service import monitor_contract_risk
+from ..services.reservation_service import overlaps, peak
 from .clock import advance_time
 from .event_generator import maybe_start_workload_events, resolve_finished_workload_events
 from .failure_generator import maybe_start_failure, resolve_finished_failures
@@ -37,13 +38,10 @@ OPEN_RESERVATION_STATUSES = [
 
 
 def _future_reservations(db: Session, run_id: int, provider_id: int, simulation_time: datetime) -> tuple[float, float]:
-    contracts = db.scalars(select(BarterContract).where(
-        BarterContract.run_id == run_id,
-        BarterContract.provider_id == provider_id,
-        BarterContract.status.in_(OPEN_RESERVATION_STATUSES),
-        BarterContract.end_time > simulation_time,
-    )).all()
-    return sum(item.cpu_amount for item in contracts), sum(item.ram_amount for item in contracts)
+    # Tomorrow's reservations must not remove capacity from today's emergency
+    # pool. Only concurrently delivered resources consume current availability.
+    end = simulation_time + timedelta(seconds=get_settings().resource_sample_seconds)
+    return peak(overlaps(db, run_id, provider_id, simulation_time, end), simulation_time, end)
 
 
 def sample_resources(db: Session, simulation_time: datetime) -> list[ResourceState]:
@@ -143,6 +141,12 @@ def advance_to(db: Session, target_time: datetime) -> None:
         return
     next_sample = state.last_sample_at + timedelta(seconds=settings.resource_sample_seconds) if state.last_sample_at else state.current_time
     next_prediction = state.last_prediction_at + timedelta(minutes=settings.prediction_interval_minutes) if state.last_prediction_at else state.current_time.replace(second=0, microsecond=0)
+    if next_prediction < state.current_time:
+        # A cadence upgrade or an imported run must not create backdated
+        # reservations for cycles that were never actually executed.
+        next_prediction = state.current_time.replace(second=0, microsecond=0)
+        if state.current_time.second or state.current_time.microsecond:
+            next_prediction += timedelta(minutes=1)
     while min(next_sample, next_prediction) <= target_time:
         action_time = min(next_sample, next_prediction)
         if next_sample == action_time:

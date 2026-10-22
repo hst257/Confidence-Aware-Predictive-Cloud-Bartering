@@ -12,6 +12,8 @@ export type Prediction = {
   safe_cpu_commitment: number; safe_ram_commitment: number; confidence: number; window_start: string; window_end: string
   generated_at: string; simulation_generated_at: string | null; horizon_minutes: number; cycle_id: string | null
   recent_volatility: number; kind: 'Initial' | 'Revised'; superseded: boolean
+  cpu_lower_bound?: number | null; cpu_upper_bound?: number | null; ram_lower_bound?: number | null; ram_upper_bound?: number | null
+  planning_cpu_upper?: number | null; planning_ram_upper?: number | null; forecast_samples?: number; calibration_samples?: number
 }
 
 export type Provider = {

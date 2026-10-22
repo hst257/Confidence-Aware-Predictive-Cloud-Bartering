@@ -2,11 +2,12 @@ from fastapi import HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from ..models import BarterContract, ContractStatus, Prediction, Provider, RenegotiationEvent, SimulationState
+from ..models import BarterContract, ContractStatus, Prediction, Provider, RenegotiationEvent, ResourceState, SimulationState
 from ..simulation.prediction_generator import generate_revised_cloud_b_prediction
 from .contract_service import create_contract
 from .credit_service import release_collateral
 from .event_service import record_event
+from .reservation_service import peak
 
 
 def _other_commitments(db: Session, contract: BarterContract) -> tuple[float, float]:
@@ -25,7 +26,7 @@ def _other_commitments(db: Session, contract: BarterContract) -> tuple[float, fl
             BarterContract.end_time > contract.start_time,
         )
     ).all()
-    return sum(item.cpu_amount for item in items), sum(item.ram_amount for item in items)
+    return peak(items, contract.start_time, contract.end_time)
 
 
 def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
@@ -55,6 +56,15 @@ def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
         other_cpu, other_ram = _other_commitments(db, contract)
         available_cpu = max(0, prediction.safe_cpu_commitment - other_cpu)
         available_ram = max(0, prediction.safe_ram_commitment - other_ram)
+        observed = db.scalar(select(ResourceState).where(
+            ResourceState.run_id == state.current_run_id,
+            ResourceState.provider_id == contract.provider_id,
+            ResourceState.simulation_time <= simulation_time,
+        ).order_by(ResourceState.simulation_time.desc(), ResourceState.id.desc()))
+        if observed and observed.cpu_capacity_lost > 0:
+            available_cpu = min(available_cpu, max(0, observed.cpu_available - other_cpu))
+        if observed and observed.ram_capacity_lost > 0:
+            available_ram = min(available_ram, max(0, observed.ram_available - other_ram))
         if available_cpu + 0.01 >= contract.cpu_amount and available_ram + 0.01 >= contract.ram_amount:
             continue
 
@@ -105,6 +115,7 @@ def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
         for supply in supply_predictions:
             dummy = BarterContract(
                 id=-1,
+                run_id=contract.run_id,
                 provider_id=supply.provider_id,
                 consumer_id=contract.consumer_id,
                 cpu_amount=0,
@@ -131,78 +142,91 @@ def monitor_contract_risk(db: Session, simulation_time) -> list[int]:
         if remaining_cpu > 0.01 or remaining_ram > 0.01:
             continue
 
-        release_collateral(db, contract, "Replaced after automatic risk detection", simulation_time)
-        contract.status = ContractStatus.RENEGOTIATED
-        replacement_ids: list[int] = []
-        if retained_cpu > 0 or retained_ram > 0:
-            retained = create_contract(
-                db,
-                provider_id=contract.provider_id,
-                consumer_id=contract.consumer_id,
-                prediction_id=prediction.id,
-                cpu_amount=retained_cpu,
-                ram_amount=retained_ram,
-                start_time=contract.start_time,
-                end_time=contract.end_time,
-                match_score=round(contract.match_score * 0.9, 1),
-                selection_reason="Retained safe portion after an automatic forecast revision.",
-                parent_contract_id=contract.id,
-                simulation_time=simulation_time,
-                commit=False,
-            )
-            replacement_ids.append(retained.id)
-        for supply, cpu, ram in plan:
-            provider = providers[supply.provider_id]
-            backup = create_contract(
-                db,
-                provider_id=provider.id,
-                consumer_id=contract.consumer_id,
-                prediction_id=supply.id,
-                cpu_amount=cpu,
-                ram_amount=ram,
-                start_time=contract.start_time,
-                end_time=contract.end_time,
-                match_score=round((supply.confidence + provider.forecast_reliability + provider.sla_reputation) / 3, 1),
-                selection_reason=(
-                    f"Automatic backup: {provider.name} covers {cpu:.1f} CPU / {ram:.1f} GB with "
-                    f"{supply.confidence:g}% confidence."
-                ),
-                parent_contract_id=contract.id,
-                simulation_time=simulation_time,
-                commit=False,
-            )
-            replacement_ids.append(backup.id)
-            record_event(
-                db,
-                "renegotiation.backup_selected",
-                f"{provider.name} selected as backup for contract #{contract.id}",
-                provider_id=provider.id,
-                contract_id=contract.id,
-                simulation_time=simulation_time,
-            )
-        db.add(
-            RenegotiationEvent(
-                run_id=contract.run_id,
-                original_contract_id=contract.id,
-                reason="Latest forecast reduced safe future capacity",
-                old_cpu=contract.cpu_amount,
-                old_ram=contract.ram_amount,
-                retained_cpu=retained_cpu,
-                retained_ram=retained_ram,
-                replacement_contract_ids=replacement_ids,
-                simulation_time=simulation_time,
-            )
-        )
-        record_event(
-            db,
-            "contract.renegotiated",
-            f"Contract #{contract.id} automatically split into {len(replacement_ids)} safe commitments",
-            provider_id=contract.provider_id,
-            contract_id=contract.id,
-            simulation_time=simulation_time,
-            details={"replacement_contract_ids": replacement_ids},
-        )
-        changed.extend(replacement_ids)
+        try:
+            with db.begin_nested():
+                release_collateral(db, contract, "Replaced after automatic risk detection", simulation_time)
+                contract.status = ContractStatus.RENEGOTIATED
+                db.flush()
+                replacement_ids: list[int] = []
+                if retained_cpu > 0 or retained_ram > 0:
+                    retained = create_contract(
+                        db,
+                        provider_id=contract.provider_id,
+                        consumer_id=contract.consumer_id,
+                        prediction_id=prediction.id,
+                        cpu_amount=retained_cpu,
+                        ram_amount=retained_ram,
+                        start_time=contract.start_time,
+                        end_time=contract.end_time,
+                        match_score=round(contract.match_score * 0.9, 1),
+                        selection_reason="Retained safe portion after an automatic forecast revision.",
+                        prorate=prediction.cycle_id is not None,
+                        parent_contract_id=contract.id,
+                        simulation_time=simulation_time,
+                        commit=False,
+                    )
+                    replacement_ids.append(retained.id)
+                for supply, cpu, ram in plan:
+                    provider = providers[supply.provider_id]
+                    backup = create_contract(
+                        db,
+                        provider_id=provider.id,
+                        consumer_id=contract.consumer_id,
+                        prediction_id=supply.id,
+                        cpu_amount=cpu,
+                        ram_amount=ram,
+                        start_time=contract.start_time,
+                        end_time=contract.end_time,
+                        match_score=round((supply.confidence + provider.forecast_reliability + provider.sla_reputation) / 3, 1),
+                        prorate=prediction.cycle_id is not None,
+                        selection_reason=(
+                            f"Automatic backup: {provider.name} covers {cpu:.1f} CPU / {ram:.1f} GB with "
+                            f"{supply.confidence:g}% confidence."
+                        ),
+                        parent_contract_id=contract.id,
+                        simulation_time=simulation_time,
+                        commit=False,
+                    )
+                    replacement_ids.append(backup.id)
+                    record_event(
+                        db,
+                        "renegotiation.backup_selected",
+                        f"{provider.name} selected as backup for contract #{contract.id}",
+                        provider_id=provider.id,
+                        contract_id=contract.id,
+                        simulation_time=simulation_time,
+                    )
+                db.add(
+                    RenegotiationEvent(
+                        run_id=contract.run_id,
+                        original_contract_id=contract.id,
+                        reason="Latest forecast reduced safe future capacity",
+                        old_cpu=contract.cpu_amount,
+                        old_ram=contract.ram_amount,
+                        retained_cpu=retained_cpu,
+                        retained_ram=retained_ram,
+                        replacement_contract_ids=replacement_ids,
+                        simulation_time=simulation_time,
+                    )
+                )
+                record_event(
+                    db,
+                    "contract.renegotiated",
+                    f"Contract #{contract.id} automatically split into {len(replacement_ids)} safe commitments",
+                    provider_id=contract.provider_id,
+                    contract_id=contract.id,
+                    simulation_time=simulation_time,
+                    details={"replacement_contract_ids": replacement_ids},
+                )
+                changed.extend(replacement_ids)
+        except HTTPException as exc:
+            if exc.status_code != 409:
+                raise
+            # Leave the original at risk; an unfundable replacement must not
+            # abort the clock or leak partially locked collateral.
+            record_event(db, "renegotiation.deferred", f"Contract #{contract.id} awaits a funded backup",
+                contract_id=contract.id, simulation_time=simulation_time,
+                details={"reason": exc.detail})
     return changed
 
 
