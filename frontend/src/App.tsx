@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { PulseIcon, ChartBarIcon, BrainIcon, CloudIcon, FileTextIcon, SquaresFourIcon, ListIcon, ArrowsClockwiseIcon, ShieldCheckIcon, XIcon } from '@phosphor-icons/react'
+import { PulseIcon, ChartBarIcon, BrainIcon, CloudIcon, FileTextIcon, SquaresFourIcon, StackIcon, ListIcon, ArrowsClockwiseIcon, ShieldCheckIcon, XIcon } from '@phosphor-icons/react'
 import { actions, loadSnapshot } from './api'
 import { ContractDrawer } from './components/ContractDrawer'
 import { EventLog } from './components/EventLog'
@@ -11,13 +11,15 @@ import { Marketplace } from './pages/Marketplace'
 import { Predictions } from './pages/Predictions'
 import { ProviderDetail } from './pages/ProviderDetail'
 import { Reputation } from './pages/Reputation'
+import { ServiceDetails } from './pages/ServiceDetails'
 import type { Match, Snapshot } from './types'
 
-type Page = 'overview' | 'predictions' | 'marketplace' | 'contracts' | 'reputation' | 'analytics' | 'provider'
+type Page = 'overview' | 'services' | 'predictions' | 'marketplace' | 'contracts' | 'reputation' | 'analytics' | 'provider'
 type ContractDetail = Parameters<typeof ContractDrawer>[0]['detail']
 
 const nav: { id: Exclude<Page, 'provider'>; label: string; icon: typeof SquaresFourIcon }[] = [
   { id: 'overview', label: 'Live overview', icon: SquaresFourIcon },
+  { id: 'services', label: 'Service details', icon: StackIcon },
   { id: 'predictions', label: 'Predictions', icon: BrainIcon },
   { id: 'marketplace', label: 'Marketplace', icon: ChartBarIcon },
   { id: 'contracts', label: 'Contracts', icon: FileTextIcon },
@@ -29,6 +31,7 @@ function App() {
   const [page, setPage] = useState<Page>('overview')
   const [data, setData] = useState<Snapshot | null>(null)
   const [selectedProviderId, setSelectedProviderId] = useState(1)
+  const [focusProviderId, setFocusProviderId] = useState<number | null>(null)
   const [rangeMinutes, setRangeMinutes] = useState(360)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,12 +39,15 @@ function App() {
   const [drawer, setDrawer] = useState<ContractDetail>(null)
   const [mobileNav, setMobileNav] = useState(false)
   const refreshing = useRef(false)
+  const latestSelection = useRef({ providerId: selectedProviderId, rangeMinutes })
+  latestSelection.current = { providerId: selectedProviderId, rangeMinutes }
 
   const refresh = useCallback(async (quiet = false) => {
     if (refreshing.current) return
     refreshing.current = true
     try {
       const snapshot = await loadSnapshot(selectedProviderId, rangeMinutes)
+      if (latestSelection.current.providerId !== selectedProviderId || latestSelection.current.rangeMinutes !== rangeMinutes) return
       setData(snapshot)
       if (snapshot.selected_provider && snapshot.selected_provider.provider.id !== selectedProviderId) {
         setSelectedProviderId(snapshot.selected_provider.provider.id)
@@ -65,7 +71,9 @@ function App() {
     const timer = window.setTimeout(() => setToast(null), 3000)
     return () => window.clearTimeout(timer)
   }, [toast])
-  useEffect(() => { window.scrollTo({ top: 0, behavior: 'auto' }) }, [page])
+  useEffect(() => {
+    if (page !== 'services' || focusProviderId === null) window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [page, focusProviderId])
 
   const perform = async (operation: () => Promise<unknown>, success: string) => {
     setBusy(true)
@@ -100,7 +108,7 @@ function App() {
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'open' : ''}`}>
       <div className="brand"><div className="brand-mark"><CloudIcon /></div><div><strong>Concord</strong><span>Federation control</span></div><button type="button" aria-label="Close navigation" className="mobile-close" onClick={() => setMobileNav(false)}><XIcon /></button></div>
-      <nav aria-label="Primary navigation">{nav.map(({ id, label, icon: Icon }) => { const active = page === id || (page === 'provider' && id === 'overview'); return <button type="button" aria-current={active ? 'page' : undefined} className={active ? 'active' : ''} key={id} onClick={() => { setPage(id); setMobileNav(false) }}><Icon size={18} /><span>{label}</span>{id === 'contracts' && data.contracts.length > 0 && <em>{data.contracts.length}</em>}</button> })}</nav>
+      <nav aria-label="Primary navigation">{nav.map(({ id, label, icon: Icon }) => { const active = page === id || (page === 'provider' && id === 'services'); return <button type="button" aria-current={active ? 'page' : undefined} className={active ? 'active' : ''} key={id} onClick={() => { setFocusProviderId(null); setPage(id); setMobileNav(false) }}><Icon size={18} /><span>{label}</span>{id === 'contracts' && data.contracts.length > 0 && <em>{data.contracts.length}</em>}</button> })}</nav>
       <div className="sidebar-status"><div><i className={data.simulation.running ? '' : 'paused'} /><span>Engine {data.simulation.running ? 'running' : 'paused'}</span></div><small>4 horizons · simulated forecasts</small></div>
     </aside>
     {mobileNav && <div className="nav-backdrop" onClick={() => setMobileNav(false)} />}
@@ -124,8 +132,9 @@ function App() {
         />
         <div className="content-grid">
           <section className="page-content">
-            {page === 'overview' && <Dashboard data={data} selectedProviderId={selectedProviderId} onSelectProvider={setSelectedProviderId} onProviderDetails={(id) => { setSelectedProviderId(id); setPage('provider') }} rangeMinutes={rangeMinutes} onRangeChange={setRangeMinutes} />}
-            {page === 'provider' && <ProviderDetail data={data.selected_provider} onBack={() => setPage('overview')} />}
+            {page === 'overview' && <Dashboard data={data} onProviderDetails={(id) => { setSelectedProviderId(id); setFocusProviderId(id); setPage('services') }} />}
+            {page === 'services' && <ServiceDetails data={data} selectedProviderId={selectedProviderId} onSelectProvider={setSelectedProviderId} onProviderDetails={(id) => { setSelectedProviderId(id); setPage('provider') }} rangeMinutes={rangeMinutes} onRangeChange={setRangeMinutes} focusProviderId={focusProviderId} />}
+            {page === 'provider' && <ProviderDetail data={data.selected_provider?.provider.id === selectedProviderId ? data.selected_provider : null} onBack={() => { setFocusProviderId(selectedProviderId); setPage('services') }} />}
             {page === 'predictions' && <Predictions predictions={data.predictions} />}
             {page === 'marketplace' && <Marketplace matches={data.matches} predictions={data.predictions} busy={busy} onCreate={createContract} />}
             {page === 'contracts' && <Contracts contracts={data.contracts} renegotiations={data.renegotiations} onOpen={(id) => void openContract(id)} />}

@@ -17,6 +17,21 @@ from ..simulation.stochastic_workload import workload_sample
 from .event_service import record_event
 
 
+def _seed_observation(db: Session, state: SimulationState, provider: Provider) -> None:
+    sample = workload_sample(db, state, provider, state.current_time)
+    db.add(ResourceState(
+        run_id=state.current_run_id, provider_id=provider.id, cpu_usage=sample.cpu, ram_usage=sample.ram,
+        baseline_cpu=sample.baseline_cpu, baseline_ram=sample.baseline_ram,
+        usable_cpu=sample.usable_cpu, usable_ram=sample.usable_ram,
+        cpu_capacity_lost=sample.cpu_capacity_lost, ram_capacity_lost=sample.ram_capacity_lost,
+        random_noise_cpu=sample.random_noise_cpu, random_noise_ram=sample.random_noise_ram,
+        volatility=sample.volatility,
+        cpu_available=max(0, sample.usable_cpu - sample.cpu), ram_available=max(0, sample.usable_ram - sample.ram),
+        effective_future_cpu=max(0, sample.usable_cpu - sample.cpu), effective_future_ram=max(0, sample.usable_ram - sample.ram),
+        simulation_time=state.current_time, observed_at=datetime.utcnow(), source="seeded stochastic profile",
+    ))
+
+
 def reset_demo(
     db: Session,
     *,
@@ -32,9 +47,7 @@ def reset_demo(
     selected_random_mode = random_mode if random_mode is not None else (previous.random_mode if previous else False)
     selected_seed = random_seed() if generate_new_seed else (seed if seed is not None else (previous.seed if previous else DEFAULT_SEED))
 
-    providers = db.scalars(select(Provider).order_by(Provider.id)).all()
-    if not providers:
-        providers = seed_provider_workloads(db)
+    providers = seed_provider_workloads(db)
     provider_defaults = {item["name"]: item for item in DEMO_PROVIDERS}
     for provider in providers:
         defaults = provider_defaults[provider.name]
@@ -66,18 +79,7 @@ def reset_demo(
         db.add(state)
     db.flush()
     for provider in providers:
-        sample = workload_sample(db, state, provider, simulation_epoch())
-        db.add(ResourceState(
-            run_id=run.id, provider_id=provider.id, cpu_usage=sample.cpu, ram_usage=sample.ram,
-            baseline_cpu=sample.baseline_cpu, baseline_ram=sample.baseline_ram,
-            usable_cpu=sample.usable_cpu, usable_ram=sample.usable_ram,
-            cpu_capacity_lost=sample.cpu_capacity_lost, ram_capacity_lost=sample.ram_capacity_lost,
-            random_noise_cpu=sample.random_noise_cpu, random_noise_ram=sample.random_noise_ram,
-            volatility=sample.volatility,
-            cpu_available=max(0, sample.usable_cpu - sample.cpu), ram_available=max(0, sample.usable_ram - sample.ram),
-            effective_future_cpu=max(0, sample.usable_cpu - sample.cpu), effective_future_ram=max(0, sample.usable_ram - sample.ram),
-            simulation_time=simulation_epoch(), observed_at=datetime.utcnow(), source="seeded stochastic profile",
-        ))
+        _seed_observation(db, state, provider)
     record_event(
         db,
         "simulation.reset",
@@ -93,3 +95,20 @@ def seed_if_empty(db: Session) -> None:
         reset_demo(db)
     elif not (db.get(SimulationState, 1) and db.get(SimulationState, 1).current_run_id):
         reset_demo(db)
+    else:
+        # Expand older installations in place; do not reset their clock, credits,
+        # contracts, observations, or completed runs just to add new members.
+        existing_ids = set(db.scalars(select(Provider.id)).all())
+        providers = seed_provider_workloads(db)
+        added = [provider for provider in providers if provider.id not in existing_ids]
+        state = db.get(SimulationState, 1)
+        for provider in added:
+            _seed_observation(db, state, provider)
+        if added:
+            record_event(
+                db, "simulation.providers_added",
+                f"Federation expanded with {len(added)} services: {', '.join(provider.name for provider in added)}",
+                simulation_time=state.current_time,
+                details={"provider_ids": [provider.id for provider in added]},
+            )
+        db.flush()

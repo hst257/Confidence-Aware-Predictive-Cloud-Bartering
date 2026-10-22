@@ -24,6 +24,12 @@ INITIAL_FORECASTS = {
     "Cloud B": {"cpu": 45, "ram": 120, "confidence": 88},
     "Cloud C": {"cpu": 75, "ram": 100, "confidence": 82},
     "Cloud D": {"cpu": 82, "ram": 118, "confidence": 74},
+    "Cloud E": {"cpu": 104, "ram": 212, "confidence": 85},
+    "Cloud F": {"cpu": 136, "ram": 276, "confidence": 87},
+    "Cloud G": {"cpu": 66, "ram": 136, "confidence": 79},
+    "Cloud H": {"cpu": 120, "ram": 308, "confidence": 88},
+    "Cloud I": {"cpu": 90, "ram": 182, "confidence": 78},
+    "Cloud J": {"cpu": 152, "ram": 244, "confidence": 90},
 }
 
 
@@ -223,8 +229,9 @@ def generate_simulation_predictions(db: Session, simulation_time: datetime) -> l
             predicted_cpu = round(max(0, min(provider.total_cpu * 1.65, predicted_cpu)), 2)
             predicted_ram = round(max(0, min(provider.total_ram * 1.65, predicted_ram)), 2)
 
-            usable_cpu = latest.usable_cpu or provider.total_cpu
-            usable_ram = latest.usable_ram or provider.total_ram
+            # Zero is a real full outage, not an absent capacity observation.
+            usable_cpu = latest.usable_cpu
+            usable_ram = latest.usable_ram
             cpu_spare = round(max(0, usable_cpu - predicted_cpu), 2)
             ram_spare = round(max(0, usable_ram - predicted_ram), 2)
             horizon_penalty = horizon / 60 * 2.8

@@ -16,7 +16,7 @@ export function ProviderDetail({ data, onBack }: { data: ProviderAnalytics | nul
     color: event.event_type === 'capacity_failure' ? 'var(--red)' : event.event_type === 'workload_drop' ? 'var(--green)' : 'var(--amber)',
   }))
   return <div className="page-stack provider-detail">
-    <button className="back-button" onClick={onBack}><ArrowLeftIcon size={15} /> Back to federation</button>
+    <button className="back-button" onClick={onBack}><ArrowLeftIcon size={15} /> Back to service details</button>
     <section className="provider-detail-hero panel">
       <div><span className="eyebrow">Cloud monitoring detail</span><h2>{provider.name}</h2><p>{provider.personality}. Current stochastic state, forecasts, failures, barter activity, and reputation.</p></div>
       <div className="hero-metrics">

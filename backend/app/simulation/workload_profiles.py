@@ -53,6 +53,36 @@ PROVIDER_PERSONALITIES = {
         "base_confidence": 72,
         "preferred_spikes": ["Unexpected Traffic Surge", "Flash Crowd", "API Burst"],
     },
+    "Cloud E": {
+        "label": "Commerce and checkout", "noise": 0.82, "spike_rate": 1.10,
+        "drop_rate": 0.35, "spike_magnitude": 0.85, "base_confidence": 87,
+        "preferred_spikes": ["Customer Campaign", "Flash Crowd", "API Burst"],
+    },
+    "Cloud F": {
+        "label": "Machine-learning compute", "noise": 0.65, "spike_rate": 0.72,
+        "drop_rate": 0.42, "spike_magnitude": 1.05, "base_confidence": 90,
+        "preferred_spikes": ["Batch Job", "Video Processing Burst", "API Burst"],
+    },
+    "Cloud G": {
+        "label": "IoT telemetry ingestion", "noise": 1.12, "spike_rate": 1.28,
+        "drop_rate": 0.48, "spike_magnitude": 0.72, "base_confidence": 81,
+        "preferred_spikes": ["API Burst", "Unexpected Traffic Surge", "Flash Crowd"],
+    },
+    "Cloud H": {
+        "label": "Memory-heavy data analytics", "noise": 0.58, "spike_rate": 0.62,
+        "drop_rate": 0.28, "spike_magnitude": 0.80, "base_confidence": 91,
+        "preferred_spikes": ["Batch Job", "API Burst", "Customer Campaign"],
+    },
+    "Cloud I": {
+        "label": "Media streaming", "noise": 1.20, "spike_rate": 1.42,
+        "drop_rate": 0.60, "spike_magnitude": 0.92, "base_confidence": 80,
+        "preferred_spikes": ["Video Processing Burst", "Flash Crowd", "Unexpected Traffic Surge"],
+    },
+    "Cloud J": {
+        "label": "Overnight research batch", "noise": 0.44, "spike_rate": 0.52,
+        "drop_rate": 0.38, "spike_magnitude": 0.76, "base_confidence": 93,
+        "preferred_spikes": ["Batch Job", "Video Processing Burst", "API Burst"],
+    },
 }
 
 
@@ -101,6 +131,24 @@ def workload_at(provider_name: str, simulation_time: datetime) -> WorkloadPoint:
         # Stable service with slow, predictable periodic oscillation.
         cpu = 56 + 7 * sin((hour * pi / 3) + day_phase) + 3 * sin(hour * pi)
         ram = 88 + 13 * sin((hour * pi / 4) + 0.8)
+    elif provider_name == "Cloud E":
+        cpu = 48 + _triangle(hour, 12, 3, 48) + _triangle(hour, 19, 2, 38)
+        ram = 112 + _triangle(hour, 12, 3.5, 84) + _triangle(hour, 19, 2.5, 56)
+    elif provider_name == "Cloud F":
+        cpu = 62 + _triangle(hour, 14, 4, 105) + 7 * sin(hour * pi / 3)
+        ram = 132 + _triangle(hour, 14, 4, 116) + 11 * sin(hour * pi / 4)
+    elif provider_name == "Cloud G":
+        cpu = 32 + 9 * sin(hour * pi / 2 + day_phase) + _triangle(hour, 9, 1.5, 27)
+        ram = 66 + 14 * sin(hour * pi / 3) + _triangle(hour, 9, 2, 32)
+    elif provider_name == "Cloud H":
+        cpu = 54 + 10 * sin(hour * pi / 4) + _triangle(hour, 15, 3, 42)
+        ram = 164 + 24 * sin(hour * pi / 5) + _triangle(hour, 15, 3, 172)
+    elif provider_name == "Cloud I":
+        cpu = 38 + _triangle(hour, 13, 2, 26) + _triangle(hour, 21, 3, 72)
+        ram = 82 + _triangle(hour, 13, 2, 42) + _triangle(hour, 21, 3.5, 118)
+    elif provider_name == "Cloud J":
+        cpu = 70 + _triangle(hour, 2, 3, 112) + _triangle(hour, 23, 2, 86)
+        ram = 118 + _triangle(hour, 2, 3, 126) + _triangle(hour, 23, 2, 98)
     else:
         # Two repeatable daily peaks around 10:00 and 18:00.
         cpu = 34 + _triangle(hour, 10, 1.5, 61) + _triangle(hour, 18, 2, 52)

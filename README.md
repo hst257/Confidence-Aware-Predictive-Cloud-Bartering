@@ -1,12 +1,13 @@
 # Confidence-Aware Predictive Cloud Bartering
 
-Stable Phase 3 prototype of a real-time, seeded stochastic cloud federation. Four providers generate noisy workloads and capacity events while a transparent simulated predictor estimates future demand. The marketplace uses prediction confidence, provider reputation, reservations, contracts, collateral, renegotiation, and emergency barter to move idle resources where they are needed.
+Stable Phase 3 prototype of a real-time, seeded stochastic cloud federation. Ten providers generate noisy workloads and capacity events while a transparent simulated predictor estimates future demand. The marketplace uses prediction confidence, provider reputation, reservations, contracts, collateral, renegotiation, and emergency barter to move idle resources where they are needed.
 
 ## What is included
 
 - FastAPI + SQLAlchemy REST backend with PostgreSQL and SQLite support
 - React + Vite dashboard for providers, predictions, marketplace, contracts, reputation, analytics, and events
-- Automatically seeded Cloud A–D demo data and provider-specific workload personalities
+- Automatically seeded Cloud A–J demo data and provider-specific workload personalities
+- Compact live service rows with click-through to detailed resource cards, telemetry, and provider audits
 - Reproducible runs plus a fresh-random-seed mode
 - Start, pause, resume, reset, step, and 1×–100× simulation clock controls
 - Stable, Normal, Volatile, Failure Test, and Stress Test scenarios
@@ -51,13 +52,14 @@ Prerequisites: Python 3.11+, Node 20+, and Docker, or an existing PostgreSQL 14+
 
 Open <http://localhost:5173>. API documentation is at <http://localhost:8000/docs>.
 
-The tables and four demo providers are created automatically on API startup. The included container publishes PostgreSQL on host port `55432`. For a quick backend-only run without Docker, set `DATABASE_URL=sqlite:///./cloud_barter.db` in `backend/.env`.
+The tables and ten demo providers are created automatically on API startup. Existing four-provider databases gain the six new providers without resetting their run, balances, or contracts. The included container publishes PostgreSQL on host port `55432`. For a quick backend-only run without Docker, set `DATABASE_URL=sqlite:///./cloud_barter.db` in `backend/.env`.
 
 ## Simulation walkthrough
 
 1. Choose a scenario and reproducible seed, then press **Apply & restart**.
 2. Select a speed and press **Start**, or use **Step +5m** for exact paused progression.
 3. Watch workload observations, prediction cycles, deficits, safe surplus capacity, reservations, and contracts update together.
+   **Live overview** lists all ten services in compact rows. Click a row to open **Service details**, immediately below it in the sidebar, with that service selected. This page retains all ten detailed resource cards and the selected service's telemetry; **View details** opens its full audit.
 4. Open **Predictions** to inspect the four future horizons and confidence-aware safe commitments.
 5. Inject a spike, drop, or capacity failure for a selected provider and observe risk, renegotiation, or emergency recovery events.
 6. Use **Same seed** to return to Day 1 at 08:00 and reproduce the same stochastic workload and event schedule.
